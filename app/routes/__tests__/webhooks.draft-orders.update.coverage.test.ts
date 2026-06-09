@@ -11,20 +11,24 @@
  *   - status === "cancelled" → cancel pending/initiated returns + emit return events
  *   - status === "cancelled" with already-cancelled rc skipped via continue
  *   - status === "cancelled" preserves existing sourceChannel (no override)
- *   - non-Error thrown by prisma → console.error stringifies the value
+ *   - non-Error thrown by prisma → structured logger receives the raw value
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateWebhookMock } = vi.hoisted(() => ({
+const { prismaMock, authenticateWebhookMock, webhookLoggerMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateWebhookMock: vi.fn(),
+  webhookLoggerMock: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
 vi.mock("../../shopify.server", () => ({
   authenticate: { webhook: authenticateWebhookMock },
+}));
+vi.mock("../../lib/observability/logger.server", () => ({
+  webhookLogger: webhookLoggerMock,
 }));
 
 import { action } from "../webhooks.draft-orders.update";
@@ -33,16 +37,13 @@ function mkReq() {
   return new Request("https://app.example/webhooks/x", { method: "POST" });
 }
 
-let errorSpy: ReturnType<typeof vi.spyOn>;
-
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateWebhookMock.mockReset();
-  errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-});
-
-afterEach(() => {
-  errorSpy.mockRestore();
+  webhookLoggerMock.error.mockClear();
+  webhookLoggerMock.warn.mockClear();
+  webhookLoggerMock.info.mockClear();
+  webhookLoggerMock.debug.mockClear();
 });
 
 describe("webhooks.draft-orders.update — coverage", () => {
@@ -328,10 +329,17 @@ describe("webhooks.draft-orders.update — coverage", () => {
       context: {},
     } as never);
     expect(res.status).toBe(200);
-    expect(errorSpy).toHaveBeenCalledWith("[webhook:draft_orders/update]", "string-thrown");
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "DRAFT_ORDERS_UPDATE",
+        shop: "store.myshopify.com",
+        err: "string-thrown",
+      }),
+      "Draft order update webhook failed",
+    );
   });
 
-  it("non-string non-Error thrown → console.error logs raw object", async () => {
+  it("non-string non-Error thrown → structured logger receives raw object", async () => {
     authenticateWebhookMock.mockResolvedValueOnce({
       shop: "store.myshopify.com",
       payload: { name: "#D-901", status: "cancelled" },
@@ -341,7 +349,14 @@ describe("webhooks.draft-orders.update — coverage", () => {
       throw weird;
     });
     await action({ request: mkReq(), params: {}, context: {} } as never);
-    expect(errorSpy).toHaveBeenCalledWith("[webhook:draft_orders/update]", weird);
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "DRAFT_ORDERS_UPDATE",
+        shop: "store.myshopify.com",
+        err: weird,
+      }),
+      "Draft order update webhook failed",
+    );
   });
 
   it("Error thrown deep inside cancellation loop → caught at outer try, logs message", async () => {
@@ -360,6 +375,13 @@ describe("webhooks.draft-orders.update — coverage", () => {
       context: {},
     } as never);
     expect(res.status).toBe(200);
-    expect(errorSpy).toHaveBeenCalledWith("[webhook:draft_orders/update]", "findMany boom");
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "DRAFT_ORDERS_UPDATE",
+        shop: "store.myshopify.com",
+        err: expect.objectContaining({ message: "findMany boom" }),
+      }),
+      "Draft order update webhook failed",
+    );
   });
 });

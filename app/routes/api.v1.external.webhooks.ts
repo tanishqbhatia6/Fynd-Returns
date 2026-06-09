@@ -10,6 +10,7 @@ import {
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { WEBHOOK_EVENTS } from "../lib/api-docs-data";
 import { isSafeOutboundUrl } from "../lib/url-safety.server";
+import { externalApiLogger } from "../lib/observability/logger.server";
 import prisma from "../db.server";
 
 // GET — List webhook subscriptions
@@ -39,7 +40,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     return apiSuccess(data);
   } catch (err) {
-    console.error("[external.webhooks.list]", err);
+    externalApiLogger.error(
+      { endpoint: "external.webhooks.list", shopId: auth.shopId, keyId: auth.keyId, err },
+      "External webhook subscription list failed",
+    );
     return apiError(500, "INTERNAL_ERROR", "Failed to fetch webhook subscriptions");
   }
 };
@@ -59,7 +63,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const perKey = await checkPerKeyRateLimit(request, "external.webhooks", auth.keyId ?? "anon");
   if (perKey) return perKey;
 
-  let body: { url?: string; events?: string[] } = {};
+  let body: { url?: string; events?: string[] };
   try {
     body = await request.json();
   } catch {
@@ -122,7 +126,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       createdAt: sub.createdAt,
     });
   } catch (err) {
-    console.error("[external.webhooks.register]", err);
+    externalApiLogger.error(
+      { endpoint: "external.webhooks.register", shopId: auth.shopId, keyId: auth.keyId, err },
+      "External webhook subscription registration failed",
+    );
     return apiError(500, "INTERNAL_ERROR", "Failed to register webhook");
   }
 };

@@ -6,15 +6,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateWebhookMock } = vi.hoisted(() => ({
+const { prismaMock, authenticateWebhookMock, webhookLoggerMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateWebhookMock: vi.fn(),
+  webhookLoggerMock: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
 vi.mock("../../shopify.server", () => ({
   authenticate: { webhook: authenticateWebhookMock },
+}));
+vi.mock("../../lib/observability/logger.server", () => ({
+  webhookLogger: webhookLoggerMock,
 }));
 
 import { action } from "../webhooks.app.uninstalled";
@@ -26,6 +30,10 @@ function mkReq() {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateWebhookMock.mockReset();
+  webhookLoggerMock.error.mockClear();
+  webhookLoggerMock.warn.mockClear();
+  webhookLoggerMock.info.mockClear();
+  webhookLoggerMock.debug.mockClear();
 });
 
 describe("webhooks.app.uninstalled", () => {
@@ -74,5 +82,13 @@ describe("webhooks.app.uninstalled", () => {
     prismaMock.session.deleteMany.mockRejectedValueOnce(new Error("DB down"));
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "APP_UNINSTALLED",
+        shop: "store.myshopify.com",
+        err: expect.objectContaining({ message: "DB down" }),
+      }),
+      "Failed to delete sessions",
+    );
   });
 });

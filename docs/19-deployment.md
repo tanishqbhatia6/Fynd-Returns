@@ -10,7 +10,8 @@ ReturnProMax is designed to deploy on **Render** (web service + managed PostgreS
 
 ```
 Code Push → Render Build → Prisma Generate → React Router Build
-          → Prisma DB Push → Backfill Scripts → Start Server
+          → Production Env Validation → Prisma Migrate Deploy
+          → Backfill Scripts → Start Server
 ```
 
 ---
@@ -29,7 +30,7 @@ services:
     region: oregon
 
     buildCommand: npm install && npx prisma generate && npm run build
-    startCommand: npx prisma db push && npm run start
+    startCommand: npm run start
 
     envVars:
       - key: NODE_ENV
@@ -38,6 +39,8 @@ services:
         fromDatabase:
           name: returnpromax-db
           property: connectionString
+      - key: REDIS_URL
+        sync: false
       - key: SHOPIFY_API_KEY
         sync: false
       - key: SHOPIFY_API_SECRET
@@ -48,7 +51,17 @@ services:
         sync: false
       - key: PORTAL_JWT_SECRET
         generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      - key: FYND_WEBHOOK_SECRET
+        generateValue: true
       - key: ENCRYPTION_KEY
+        sync: false
+      - key: APP_BILLING_MODE
+        value: production
+      - key: APP_MANAGED_PRICING_HANDLE
+        sync: false
+      - key: SUPERADMIN_EMAILS
         sync: false
 
 databases:
@@ -70,7 +83,8 @@ databases:
 5. **Verify**: Check the deploy logs for:
    ```
    Prisma schema loaded from prisma/schema.prisma
-   Your database is now in sync with your Prisma schema.
+   Production environment validation passed.
+   Applying migration ...
    [backfill] ...
    Listening on port ...
    ```
@@ -82,7 +96,9 @@ databases:
 | Install      | `npm install`                               | ~30s      |
 | Generate     | `npx prisma generate`                       | ~5s       |
 | Build        | `npm run build` (React Router)              | ~20s      |
-| DB Sync      | `npx prisma db push`                        | ~5s       |
+| Env Gate     | `node scripts/validate-production-env.mjs`  | <1s       |
+| Preflight    | `npm run preflight:production -- --skip-network` | <1s |
+| DB Migrate   | `npx prisma migrate deploy`                 | ~5s       |
 | Backfill     | 3 backfill scripts (see below)              | ~10s      |
 | Start        | `react-router-serve ./build/server/index.js`| Immediate |
 
@@ -136,15 +152,18 @@ The app requires Node.js >= 22.12 (specified in `package.json` engines).
 | `SHOPIFY_API_KEY`   | Shopify app API key                                  | `abc123def456`                   |
 | `SHOPIFY_API_SECRET`| Shopify app API secret                               | `shpss_abc123...`                |
 | `SHOPIFY_APP_URL`   | Public URL of the deployed app                       | `https://returnpromax.onrender.com` |
+| `SCOPES`            | Shopify OAuth scopes                                 | `read_orders,write_orders`       |
 | `PORTAL_JWT_SECRET` | Secret for signing portal JWT tokens                 | 64 hex characters                |
 | `ENCRYPTION_KEY`    | AES encryption key for Fynd credentials              | 64 hex characters                |
+| `REDIS_URL`         | Redis connection string for production rate limiting | `rediss://...`                   |
+| `CRON_SECRET`       | Secret for scheduled/cron endpoints                  | 32+ random characters            |
+| `FYND_WEBHOOK_SECRET` | Secret for legacy/global Fynd webhook authentication | 32+ random characters          |
 
 ### Optional Variables
 
 | Variable            | Description                                          | Default      |
 |---------------------|------------------------------------------------------|--------------|
 | `NODE_ENV`          | Environment mode                                     | `production` |
-| `SCOPES`            | Shopify OAuth scopes                                 | (from render.yaml) |
 | `PORT`              | Server port                                          | `3000`       |
 
 ### Generating Secrets
@@ -156,6 +175,9 @@ openssl rand -hex 32
 # Generate ENCRYPTION_KEY
 openssl rand -hex 32
 
+# Generate CRON_SECRET / FYND_WEBHOOK_SECRET
+openssl rand -hex 32
+
 # Validate encryption key format
 npm run validate:key
 ```
@@ -163,8 +185,12 @@ npm run validate:key
 ### Security Notes
 
 - Never commit `.env` files to source control.
+- Production startup validates required environment variables before serving traffic.
+- `SHOPIFY_APP_URL` must be an origin-only `https://` URL on a stable public hostname. Localhost, private IPs, `.local`, and placeholder `example.com` hosts are rejected in production.
+- Use Kubernetes Secrets or your platform secret manager; do not put secrets in ConfigMaps, FIK values, Helm values, or plain env files.
 - `ENCRYPTION_KEY` encrypts Fynd credentials at rest. Changing it invalidates all stored credentials.
 - `PORTAL_JWT_SECRET` signs portal session tokens. Changing it invalidates all active portal sessions.
+- See `docs/22-operational-readiness.md` for probes, Redis, backups, alerts, and rotation runbooks.
 
 ---
 
@@ -180,27 +206,17 @@ PostgreSQL (required). Supported options:
 
 ### Migrations
 
-ReturnProMax uses `prisma db push` for schema synchronization (not migration files):
+ReturnProMax uses Prisma migrations for production schema changes:
 
 ```bash
-# Apply schema changes to database
-npx prisma db push
-
-# Generate Prisma client
-npx prisma generate
-
-# Reset database (WARNING: deletes all data)
-npx prisma db push --force-reset
-```
-
-For production environments, consider using Prisma Migrate for versioned migrations:
-
-```bash
-# Create a migration
+# Create and test a migration locally
 npx prisma migrate dev --name description
 
 # Apply migrations in production
 npx prisma migrate deploy
+
+# Generate Prisma client
+npx prisma generate
 ```
 
 The `npm run setup` script combines both generate and migrate:
@@ -255,12 +271,13 @@ All scripts are idempotent and safe to run multiple times. They log progress to 
 |----------------------|----------------------------------------------------------|-----------------------------------|
 | `build`              | `react-router build`                                     | Build production bundle           |
 | `dev`                | `npx shopify app dev`                                    | Development with Shopify CLI      |
-| `dev:local`          | `npx prisma generate && npx prisma db push && npm exec react-router dev` | Local dev without Shopify |
-| `start`              | `node scripts/backfill-*.mjs && react-router-serve ./build/server/index.js` | Production start |
+| `dev:local`          | `npx prisma generate && npx prisma db push && NODE_OPTIONS='--import ./instrumentation.server.mjs' npm exec react-router dev` | Local dev without Shopify |
+| `start`              | `node scripts/validate-production-env.mjs && prisma migrate deploy && node scripts/run-startup-backfills.mjs && react-router-serve ./build/server/index.js` | Production start |
 | `setup`              | `prisma generate && prisma migrate deploy`               | Setup database                    |
 | `deploy`             | `shopify app deploy`                                     | Deploy app config to Shopify      |
 | `config:link`        | `shopify app config link`                                | Link to Shopify app               |
 | `validate:key`       | `node scripts/validate-encryption-key.js`                | Validate ENCRYPTION_KEY format    |
+| `preflight:production` | `node scripts/production-preflight.mjs`                 | Validate production readiness gates |
 | `test:fynd-api`      | `node scripts/test-fynd-apis.mjs`                        | Test Fynd API connectivity        |
 | `test:fynd-api:bash` | `./scripts/test-fynd-apis.sh`                            | Test Fynd APIs via curl           |
 | `test`               | `vitest run`                                             | Run test suite                    |
@@ -280,7 +297,7 @@ After deployment, verify:
 
 1. **App loads**: Visit `{SHOPIFY_APP_URL}` -- should redirect to Shopify OAuth.
 2. **Portal works**: Visit `{SHOPIFY_APP_URL}/portal/{shop-domain}` -- should show the customer portal.
-3. **Database**: Check Render logs for "Your database is now in sync".
+3. **Database**: Check Render logs for Prisma migration output such as "Applying migration" or "No pending migrations to apply".
 4. **Fynd webhook**: Configure the webhook URL in Fynd Platform and send a test event.
 
 ---

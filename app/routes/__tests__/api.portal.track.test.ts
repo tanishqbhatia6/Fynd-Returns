@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, checkRateLimitMock, extractJourneyMock } = vi.hoisted(() => ({
+const { prismaMock, checkRateLimitMock, extractJourneyMock, verifyPortalSessionMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
   extractJourneyMock: vi.fn(() => [{ status: "return_initiated", at: "2025-01-01" }]),
+  verifyPortalSessionMock: vi.fn(),
 }));
 
 Object.assign(prismaMock, createPrismaMock());
@@ -28,6 +29,9 @@ vi.mock("../../lib/rate-limit.server", () => ({
 vi.mock("../../lib/fynd-payload.server", () => ({
   extractFyndJourney: extractJourneyMock,
 }));
+vi.mock("../../lib/portal-auth.server", () => ({
+  verifyPortalSession: verifyPortalSessionMock,
+}));
 
 import { loader } from "../api.portal.track";
 
@@ -41,6 +45,14 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
   extractJourneyMock.mockClear();
+  verifyPortalSessionMock.mockReset().mockResolvedValue({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "user@example.com",
+    matchedReturnIds: JSON.stringify(["rc-1"]),
+  });
 });
 
 describe("GET /api/portal/track", () => {
@@ -68,14 +80,16 @@ describe("GET /api/portal/track", () => {
     expect(await res.json()).toEqual({ error: "returnRequestNo is required" });
   });
 
-  it("requires email or phone", async () => {
+  it("requires a verified portal session", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
+    verifyPortalSessionMock.mockResolvedValueOnce(null);
     const res = await loader({
       request: mkRequest("shop=x&returnRequestNo=R1"),
       params: {},
       context: {},
     } as never);
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "email or phone is required" });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "Verified customer session is required" });
   });
 
   it("returns 404 when shop not found", async () => {
@@ -101,9 +115,18 @@ describe("GET /api/portal/track", () => {
     expect(await res.json()).toEqual({ error: "Return not found" });
   });
 
-  it("returns 404 on email/phone mismatch (anti-enumeration)", async () => {
+  it("returns 404 when the verified session does not own the return", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
+    verifyPortalSessionMock.mockResolvedValueOnce({
+      id: "session-1",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: "hash",
+      lookupValueNorm: "other@example.com",
+      matchedReturnIds: JSON.stringify(["other-return"]),
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
+      id: "rc-1",
       returnRequestNo: "R1",
       customerEmailNorm: "real@example.com",
       customerPhoneNorm: null,
@@ -128,6 +151,7 @@ describe("GET /api/portal/track", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     const now = new Date("2025-06-01T00:00:00Z");
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
+      id: "rc-1",
       returnRequestNo: "R1",
       customerEmailNorm: "user@example.com",
       customerPhoneNorm: null,
@@ -157,6 +181,7 @@ describe("GET /api/portal/track", () => {
   it("does not expose unscoped Fynd journey when status=approved", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
+      id: "rc-1",
       returnRequestNo: "R1",
       customerEmailNorm: "user@example.com",
       customerPhoneNorm: null,
@@ -182,7 +207,16 @@ describe("GET /api/portal/track", () => {
 
   it("scopes approved return journey by the current return item bag", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
+    verifyPortalSessionMock.mockResolvedValueOnce({
+      id: "session-1",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: "hash",
+      lookupValueNorm: "user@example.com",
+      matchedReturnIds: JSON.stringify(["rc-2"]),
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
+      id: "rc-2",
       returnRequestNo: "R2",
       customerEmailNorm: "user@example.com",
       customerPhoneNorm: null,
@@ -230,6 +264,7 @@ describe("GET /api/portal/track", () => {
   it("matches by phone when email absent", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
+      id: "rc-1",
       returnRequestNo: "R1",
       customerEmailNorm: null,
       customerPhoneNorm: "+14155551212",

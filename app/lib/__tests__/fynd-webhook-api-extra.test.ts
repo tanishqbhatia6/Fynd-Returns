@@ -63,8 +63,8 @@ afterEach(() => {
 /* ── FYND_WEBHOOK_EVENTS ─────────────────────────────────────────────── */
 
 describe("FYND_WEBHOOK_EVENTS (extra)", () => {
-  it("contains exactly six events for refund + shipment categories", () => {
-    expect(FYND_WEBHOOK_EVENTS).toHaveLength(6);
+  it("contains the configured refund + shipment event categories", () => {
+    expect(FYND_WEBHOOK_EVENTS).toHaveLength(5);
     const names = new Set(FYND_WEBHOOK_EVENTS.map((e) => e.event_name));
     expect(names).toEqual(new Set(["refund", "shipment"]));
   });

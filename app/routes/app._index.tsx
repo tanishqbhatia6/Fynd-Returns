@@ -17,6 +17,7 @@ import {
 import { getStatusColor } from "../lib/status-colors";
 import { AppPage } from "../components/AppPage";
 import { SetupChecklist } from "../components/SetupChecklist";
+import { appLogger, cronLogger } from "../lib/observability/logger.server";
 import {
   AreaChart,
   Area,
@@ -123,19 +124,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .deleteMany({
         where: { expiresAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
       })
-      .catch((err: unknown) => console.warn("[cleanup] Failed to clean expired sessions:", err));
+      .catch((err: unknown) => cronLogger.warn({ err }, "Expired lookup session cleanup failed"));
     prisma.fyndWebhookLog
       .deleteMany({
         where: { createdAt: { lt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } },
       })
-      .catch((err: unknown) => console.warn("[cleanup] Failed to clean old webhook logs:", err));
+      .catch((err: unknown) => cronLogger.warn({ err }, "Old Fynd webhook log cleanup failed"));
   }
 
   import("../lib/fynd-retry.server").then(({ runFyndRetryQueue }) =>
-    runFyndRetryQueue().catch((err: unknown) => console.warn("[retry] Queue error:", err)),
+    runFyndRetryQueue().catch((err: unknown) => cronLogger.warn({ err }, "Fynd retry queue failed")),
   );
   import("../lib/fynd-status-poll.server").then(({ pollStaleReturns }) =>
-    pollStaleReturns().catch((err: unknown) => console.warn("[poll] Status poll error:", err)),
+    pollStaleReturns().catch((err: unknown) => cronLogger.warn({ err }, "Fynd status poll failed")),
   );
 
   try {
@@ -466,7 +467,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         where: { ...where, fraudRiskLevel: { in: ["high", "critical"] } },
       });
     } catch (err) {
-      console.warn("[dashboard] Fraud alert query failed (columns may not exist yet):", err);
+      appLogger.warn(
+        { err, shopDomain: session.shop, shopId: shop.id },
+        "Dashboard fraud alert query failed",
+      );
     }
 
     const suggestions = buildSuggestions({
@@ -527,7 +531,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       totalRefundAmount,
     };
   } catch (err) {
-    console.error("Dashboard loader error:", err);
+    appLogger.error({ err, shopDomain: session.shop }, "Dashboard loader failed");
     return {
       totalReturns: 0,
       statusMap: {} as Record<string, number>,

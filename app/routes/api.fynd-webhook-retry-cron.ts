@@ -9,42 +9,28 @@
  * URL: POST /api/fynd-webhook-retry-cron (or GET for simple cron services)
  */
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { timingSafeEqual } from "crypto";
+import { authorizeCronRequest } from "../lib/cron-auth.server";
+import { cronLogger } from "../lib/observability/logger.server";
+import { cronJobCounter } from "../lib/observability/metrics.server";
 
 const MAX_RETRIES = 5;
 const BACKOFF_MINUTES = [5, 15, 60, 240, 720]; // 5m, 15m, 1h, 4h, 12h
 const BATCH_SIZE = 100;
 
-function safeCompare(a: string, b: string): boolean {
-  const aBuf = Buffer.from(a);
-  const bBuf = Buffer.from(b);
-  if (aBuf.length !== bBuf.length) {
-    timingSafeEqual(aBuf, Buffer.alloc(aBuf.length, 0));
-    return false;
-  }
-  return timingSafeEqual(aBuf, bBuf);
-}
-
-function isAuthorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    const host = request.headers.get("host") ?? "";
-    return host.includes("localhost") || host.includes("127.0.0.1");
-  }
-  const auth = request.headers.get("authorization") ?? "";
-  // Constant-time compare so an attacker can't probe the secret via timing.
-  return safeCompare(auth, `Bearer ${secret}`);
-}
-
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  if (request.method === "GET" && isAuthorized(request)) {
-    return runRetryCron();
+  if (request.method !== "GET") {
+    return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
-  return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (!authorizeCronRequest(request)) {
+    cronJobCounter.add(1, { job: "fynd_webhook_retry", outcome: "unauthorized" });
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return runRetryCron();
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  if (!isAuthorized(request)) {
+  if (!authorizeCronRequest(request)) {
+    cronJobCounter.add(1, { job: "fynd_webhook_retry", outcome: "unauthorized" });
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   return runRetryCron();
@@ -72,6 +58,7 @@ async function runRetryCron() {
   });
 
   if (eligible.length === 0) {
+    cronJobCounter.add(1, { job: "fynd_webhook_retry", outcome: "empty" });
     return Response.json({ ok: true, processed: 0, succeeded: 0, rescheduled: 0, exhausted: 0 });
   }
 
@@ -132,9 +119,15 @@ async function runRetryCron() {
     }
   }
 
-  console.log(
-    `[Fynd webhook retry cron] Processed ${eligible.length}: ${succeeded} succeeded, ${rescheduled} rescheduled, ${exhausted} exhausted`,
+  cronLogger.info(
+    { processed: eligible.length, succeeded, rescheduled, exhausted },
+    "Fynd webhook retry cron completed",
   );
+
+  cronJobCounter.add(1, {
+    job: "fynd_webhook_retry",
+    outcome: exhausted > 0 ? "partial_exhausted" : "success",
+  });
 
   return Response.json({
     ok: true,

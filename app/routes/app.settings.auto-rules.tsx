@@ -135,17 +135,21 @@ function newDraftKey() {
 export default function AutoApproveRulesSettings() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
+  const loaderRulesFingerprint = JSON.stringify(data.rules);
+  const lastLoaderRulesFingerprint = React.useRef(loaderRulesFingerprint);
   const [rules, setRules] = React.useState<DraftRule[]>(() =>
     data.rules.map((r) => ({ ...r, _key: newDraftKey() })),
   );
 
   React.useEffect(() => {
+    if (lastLoaderRulesFingerprint.current === loaderRulesFingerprint) return;
+    lastLoaderRulesFingerprint.current = loaderRulesFingerprint;
     setRules(data.rules.map((r) => ({ ...r, _key: newDraftKey() })));
-  }, [data.rules]);
+  }, [data.rules, loaderRulesFingerprint]);
 
   const addRule = () => {
-    setRules([
-      ...rules,
+    setRules((currentRules) => [
+      ...currentRules,
       {
         _key: newDraftKey(),
         field: "orderValue",
@@ -157,12 +161,12 @@ export default function AutoApproveRulesSettings() {
   };
 
   const removeRule = (key: string) => {
-    setRules(rules.filter((r) => r._key !== key));
+    setRules((currentRules) => currentRules.filter((r) => r._key !== key));
   };
 
   const updateRule = (key: string, updates: Partial<AutoApproveRule>) => {
-    setRules(
-      rules.map((r) => {
+    setRules((currentRules) =>
+      currentRules.map((r) => {
         if (r._key !== key) return r;
         const updated = { ...r, ...updates };
         if (updates.field && updates.field !== r.field) {
@@ -536,7 +540,7 @@ export default function AutoApproveRulesSettings() {
                   >
                     {rules
                       .filter((r) => r.value.trim())
-                      .map((rule, idx) => (
+                      .map((rule) => (
                         <li key={rule._key}>
                           If <strong>{FIELD_LABELS[rule.field] || rule.field}</strong>{" "}
                           <code

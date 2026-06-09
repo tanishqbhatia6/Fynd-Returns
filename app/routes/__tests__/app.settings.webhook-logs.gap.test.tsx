@@ -80,10 +80,12 @@ vi.mock("react-router", async () => {
 
 import { renderWithRouter } from "../../test/component-helpers";
 import { waitFor, fireEvent, act } from "@testing-library/react";
+import { authenticate } from "../../shopify.server";
 import WebhookLogsPage, { loader } from "../app.settings.webhook-logs";
 import prismaMod from "../../db.server";
 
 const prisma: any = prismaMod;
+const authenticateAdminMock = vi.mocked(authenticate.admin);
 
 const baseLoaderData = {
   logs: [] as unknown[],
@@ -176,6 +178,9 @@ beforeEach(() => {
   prisma.fyndWebhookLog.count.mockResolvedValue(0);
   prisma.fyndWebhookLog.findMany.mockResolvedValue([]);
   prisma.fyndWebhookLog.groupBy.mockResolvedValue([]);
+  authenticateAdminMock.mockResolvedValue({
+    session: { shop: "store.myshopify.com" },
+  } as never);
 });
 
 describe("WebhookLogsPage gap — RetryButton fetcher branches (lines 222, 226-232)", () => {

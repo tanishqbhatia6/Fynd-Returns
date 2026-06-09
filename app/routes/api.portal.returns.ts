@@ -1,62 +1,111 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { verifyPortalToken } from "../lib/portal-auth.server";
+import { verifyPortalSession } from "../lib/portal-auth.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
+import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { getPortalLabels } from "../lib/portal-i18n";
 import { extractFyndJourney } from "../lib/fynd-payload.server";
 import { buildFyndJourneyFilterForReturn } from "../lib/fynd-return-scope.server";
+
+function parseMatchedReturnIds(raw: string | null | undefined): string[] {
+  try {
+    const parsed = JSON.parse(raw || "[]");
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseReturnLabel(raw: string | null | undefined) {
+  try {
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return {
+      carrier: typeof parsed.carrier === "string" ? parsed.carrier : null,
+      trackingNumber: typeof parsed.trackingNumber === "string" ? parsed.trackingNumber : null,
+      labelUrl: typeof parsed.labelUrl === "string" ? parsed.labelUrl : null,
+      qrCodeUrl: typeof parsed.qrCodeUrl === "string" ? parsed.qrCodeUrl : null,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: getPortalCorsHeaders(request) });
   }
+
+  const rateLimit = await checkRateLimit(request, "portal.returns");
+  if (!rateLimit.allowed) {
+    return withCors(rateLimitResponse(rateLimit.retryAfterMs), request);
+  }
+
   const auth = request.headers.get("Authorization");
   const token = auth?.replace("Bearer ", "");
   if (!token) {
     return withCors(Response.json({ error: "Unauthorized" }, { status: 401 }), request);
   }
 
-  const payload = verifyPortalToken(token);
-  if (!payload) {
+  const session = await verifyPortalSession(prisma, { portalToken: token });
+  if (!session) {
     return withCors(Response.json({ error: "Invalid token" }, { status: 401 }), request);
   }
 
-  const session = await prisma.lookupSession.findUnique({
-    where: { id: payload.sessionId as string },
-  });
-  if (!session?.verifiedAt) {
-    return withCors(Response.json({ error: "Session not verified" }, { status: 401 }), request);
-  }
-  if (session.expiresAt < new Date()) {
-    return withCors(
-      Response.json(
-        { error: "Session expired. Please look up your return again." },
-        { status: 401 },
-      ),
-      request,
-    );
-  }
-
-  let returnIds: string[] = [];
-  try {
-    returnIds = JSON.parse(session.matchedReturnIds || "[]");
-  } catch {
-    // ignore
-  }
+  const returnIds = parseMatchedReturnIds(session.matchedReturnIds);
 
   const returns = returnIds.length
     ? await prisma.returnCase.findMany({
-        where: { id: { in: returnIds }, shopId: payload.shopId as string },
-        include: {
-          items: true,
-          events: { orderBy: { happenedAt: "desc" }, take: 10 },
+        where: { id: { in: returnIds }, shopId: session.shopId },
+        select: {
+          id: true,
+          returnRequestNo: true,
+          shopifyOrderName: true,
+          status: true,
+          refundStatus: true,
+          resolutionType: true,
+          createdAt: true,
+          updatedAt: true,
+          notesForCustomer: true,
+          returnAwb: true,
+          forwardAwb: true,
+          fyndReturnId: true,
+          fyndReturnNo: true,
+          fyndShipmentId: true,
+          fyndCurrentStatus: true,
+          fyndPayloadJson: true,
+          returnLabelJson: true,
+          cancellationRequestedAt: true,
+          cancellationDeclinedAt: true,
+          items: {
+            select: {
+              id: true,
+              title: true,
+              variantTitle: true,
+              sku: true,
+              qty: true,
+              reasonCode: true,
+              imageUrl: true,
+              fyndBagId: true,
+              fyndShipmentId: true,
+            },
+          },
+          events: {
+            orderBy: { happenedAt: "desc" },
+            take: 10,
+            select: {
+              id: true,
+              eventType: true,
+              happenedAt: true,
+            },
+          },
         },
         orderBy: { createdAt: "desc" },
       })
     : [];
 
   const shopSettings = await prisma.shopSettings.findUnique({
-    where: { shopId: payload.shopId as string },
+    where: { shopId: session.shopId },
   });
 
   const portalLanguage = shopSettings?.portalLanguage ?? "en";
@@ -72,18 +121,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const defaultReturnInstructions = shopSettings?.defaultReturnInstructions ?? null;
 
   const enrichedReturns = returns.map((r) => {
-    let returnLabelInfo: {
-      carrier?: string | null;
-      trackingNumber?: string | null;
-      labelUrl?: string | null;
-      qrCodeUrl?: string | null;
-    } | null = null;
-    try {
-      if (r.returnLabelJson) returnLabelInfo = JSON.parse(r.returnLabelJson);
-    } catch {
-      /* ignore */
-    }
-
     const isApprovedOrCompleted = ["approved", "completed"].includes(r.status.toLowerCase());
     const journeyFilter = buildFyndJourneyFilterForReturn(r);
 
@@ -99,16 +136,36 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       : null;
 
     return {
-      ...r,
-      // Expose public-safe fields explicitly (fyndPayloadJson stripped out)
-      fyndPayloadJson: undefined,
+      id: r.id,
+      returnRequestNo: r.returnRequestNo ?? null,
+      returnRequestId: r.returnRequestNo ?? r.id,
+      shopifyOrderName: r.shopifyOrderName ?? null,
+      status: r.status,
+      refundStatus: r.refundStatus ?? null,
+      resolutionType: r.resolutionType ?? null,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      items: r.items.map((item) => ({
+        id: item.id,
+        title: item.title ?? null,
+        variantTitle: item.variantTitle ?? null,
+        sku: item.sku ?? null,
+        qty: item.qty,
+        reasonCode: item.reasonCode ?? null,
+        imageUrl: item.imageUrl ?? null,
+      })),
+      events: r.events.map((event) => ({
+        id: event.id,
+        eventType: event.eventType,
+        happenedAt: event.happenedAt,
+      })),
       notesForCustomer: r.notesForCustomer ?? null,
       returnAwb: r.returnAwb ?? null,
       forwardAwb: r.forwardAwb ?? null,
       fyndReturnNo: r.fyndReturnNo ?? null,
       fyndCurrentStatus: (r as { fyndCurrentStatus?: string | null }).fyndCurrentStatus ?? null,
       returnJourney,
-      returnLabel: isApprovedOrCompleted ? returnLabelInfo : null,
+      returnLabel: isApprovedOrCompleted ? parseReturnLabel(r.returnLabelJson) : null,
       returnInstructions: isApprovedOrCompleted ? defaultReturnInstructions : null,
       cancellationRequestedAt: r.cancellationRequestedAt ?? null,
       cancellationDeclinedAt: r.cancellationDeclinedAt ?? null,

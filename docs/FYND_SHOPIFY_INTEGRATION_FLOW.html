@@ -325,8 +325,8 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.8em; background: r
     </div>
     <div class="gap-card high">
       <div class="gap-severity">High</div>
-      <div class="gap-title">Webhook signature verification is optional</div>
-      <div class="gap-desc">The <code>FYND_WEBHOOK_SECRET</code> env var is optional. If not set, any POST to <code>/api/webhooks/fynd</code> is accepted without verification. <strong>Impact:</strong> An attacker could forge refund webhooks and trigger unauthorized Shopify refunds.</div>
+      <div class="gap-title">Webhook signature verification is enforced</div>
+      <div class="gap-desc">The legacy/global <code>/api/webhooks/fynd</code> receiver now requires <code>FYND_WEBHOOK_SECRET</code> in production startup validation and rejects unauthenticated webhooks. Per-shop webhook secrets remain preferred for shop-specific callback URLs.</div>
     </div>
     <div class="gap-card high">
       <div class="gap-severity">High</div>

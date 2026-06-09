@@ -9,12 +9,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateMock, sendApprovalMock, sendRejectionMock } = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateMock: vi.fn(),
-  sendApprovalMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendRejectionMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-}));
+const { prismaMock, authenticateMock, sendApprovalMock, sendRejectionMock, appLoggerMock } =
+  vi.hoisted(() => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateMock: vi.fn(),
+    sendApprovalMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+    sendRejectionMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+    appLoggerMock: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+  }));
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -22,6 +24,11 @@ vi.mock("../../shopify.server", () => ({ authenticate: { admin: authenticateMock
 vi.mock("../../lib/notification.server", () => ({
   sendApprovalNotification: sendApprovalMock,
   sendRejectionNotification: sendRejectionMock,
+}));
+vi.mock("../../lib/observability/logger.server", () => ({
+  appLogger: appLoggerMock,
+  fyndLogger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
+  notifLogger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
 import { action } from "../api.returns.bulk";
@@ -44,12 +51,12 @@ beforeEach(() => {
   authenticateMock.mockReset().mockResolvedValue({ session: { shop: "store.myshopify.com" } });
   sendApprovalMock.mockReset().mockResolvedValue(undefined);
   sendRejectionMock.mockReset().mockResolvedValue(undefined);
+  appLoggerMock.error.mockClear();
   prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1" });
 });
 
 describe("bulk_reject — per-row update failure (lines 237-238)", () => {
   it("captures Error.message in results when prisma.returnCase.update throws", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       { id: "rc-throw", status: "pending", customerEmailNorm: null, shopifyOrderName: "#1" },
     ]);
@@ -68,11 +75,14 @@ describe("bulk_reject — per-row update failure (lines 237-238)", () => {
     expect(body.results).toEqual([{ id: "rc-throw", success: false, error: "update-blew-up" }]);
     // No event row should be persisted when the status-flip itself failed.
     expect(prismaMock.returnEvent.create).not.toHaveBeenCalled();
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[BulkReject] Failed for rc-throw:"),
-      expect.any(Error),
+    expect(appLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        err: expect.any(Error),
+        shopDomain: "store.myshopify.com",
+        returnCaseId: "rc-throw",
+      }),
+      "Bulk reject return failed",
     );
-    errSpy.mockRestore();
   });
 
   it("falls back to 'Unknown error' when the thrown value is not an Error instance", async () => {

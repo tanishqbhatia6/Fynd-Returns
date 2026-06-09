@@ -3,7 +3,7 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
 const {
   prismaMock,
-  verifyPortalTokenMock,
+  verifyPortalSessionMock,
   verifyPortalCsrfTokenMock,
   checkRateLimitMock,
   parsePortalConfigMock,
@@ -11,7 +11,7 @@ const {
   dispatchWebhookEventMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  verifyPortalTokenMock: vi.fn(),
+  verifyPortalSessionMock: vi.fn(),
   verifyPortalCsrfTokenMock: vi.fn(() => true),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
   parsePortalConfigMock: vi.fn(() => ({ allowReturnCancellation: true })),
@@ -24,7 +24,7 @@ Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
 vi.mock("../../lib/portal-auth.server", () => ({
-  verifyPortalToken: verifyPortalTokenMock,
+  verifyPortalSession: verifyPortalSessionMock,
   verifyPortalCsrfToken: verifyPortalCsrfTokenMock,
 }));
 vi.mock("../../lib/portal-cors.server", () => ({
@@ -62,15 +62,17 @@ function jsonReq(body: unknown, opts: { method?: string; auth?: string } = {}) {
 function validSession() {
   return {
     id: "sess-1",
-    verifiedAt: new Date(),
-    expiresAt: new Date(Date.now() + 60_000),
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "u@x.com",
     matchedReturnIds: JSON.stringify(["rc-1"]),
   };
 }
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  verifyPortalTokenMock.mockReset().mockReturnValue({ sessionId: "sess-1", shopId: "shop-1" });
+  verifyPortalSessionMock.mockReset().mockResolvedValue(validSession());
   verifyPortalCsrfTokenMock.mockReset().mockReturnValue(true);
   checkRateLimitMock
     .mockReset()
@@ -126,7 +128,7 @@ describe("action guards", () => {
     expect(res.status).toBe(401);
   });
   it("401 on invalid token", async () => {
-    verifyPortalTokenMock.mockReturnValueOnce(null);
+    verifyPortalSessionMock.mockResolvedValueOnce(null);
     const res = await action({
       request: jsonReq({ shop: "x", returnCaseId: "rc-1" }, { auth: "Bearer bad" }),
       params: {},
@@ -135,10 +137,7 @@ describe("action guards", () => {
     expect(res.status).toBe(401);
   });
   it("401 when session unverified", async () => {
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
-      ...validSession(),
-      verifiedAt: null,
-    });
+    verifyPortalSessionMock.mockResolvedValueOnce(null);
     const res = await action({
       request: jsonReq({ shop: "x", returnCaseId: "rc-1" }, { auth: "Bearer t" }),
       params: {},
@@ -147,10 +146,7 @@ describe("action guards", () => {
     expect(res.status).toBe(401);
   });
   it("401 when session expired", async () => {
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
-      ...validSession(),
-      expiresAt: new Date(Date.now() - 1000),
-    });
+    verifyPortalSessionMock.mockResolvedValueOnce(null);
     const res = await action({
       request: jsonReq({ shop: "x", returnCaseId: "rc-1" }, { auth: "Bearer t" }),
       params: {},
@@ -159,7 +155,7 @@ describe("action guards", () => {
     expect(res.status).toBe(401);
   });
   it("404 when returnCaseId not in session's matchedReturnIds", async () => {
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
+    verifyPortalSessionMock.mockResolvedValueOnce({
       ...validSession(),
       matchedReturnIds: JSON.stringify(["other"]),
     });
@@ -171,7 +167,7 @@ describe("action guards", () => {
     expect(res.status).toBe(404);
   });
   it("tolerates invalid matchedReturnIds JSON (resolves to 404)", async () => {
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
+    verifyPortalSessionMock.mockResolvedValueOnce({
       ...validSession(),
       matchedReturnIds: "{broken",
     });
@@ -183,7 +179,6 @@ describe("action guards", () => {
     expect(res.status).toBe(404);
   });
   it("404 when shop not found", async () => {
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(validSession());
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
     const res = await action({
       request: jsonReq({ shop: "missing", returnCaseId: "rc-1" }, { auth: "Bearer t" }),
@@ -193,12 +188,11 @@ describe("action guards", () => {
     expect(res.status).toBe(404);
   });
   it("403 on cross-shop token replay", async () => {
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(validSession());
+    verifyPortalSessionMock.mockResolvedValueOnce({ ...validSession(), shopId: "shop-1" });
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-2",
       shopDomain: "other.myshopify.com",
     });
-    verifyPortalTokenMock.mockReturnValueOnce({ sessionId: "sess-1", shopId: "shop-1" });
     const res = await action({
       request: jsonReq({ shop: "other", returnCaseId: "rc-1" }, { auth: "Bearer t" }),
       params: {},
@@ -207,7 +201,6 @@ describe("action guards", () => {
     expect(res.status).toBe(403);
   });
   it("403 when portal config disables cancellation", async () => {
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(validSession());
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
       shopDomain: "store.myshopify.com",
@@ -222,7 +215,6 @@ describe("action guards", () => {
     expect(res.status).toBe(403);
   });
   it("404 when return case not found for shop", async () => {
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(validSession());
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
       shopDomain: "store.myshopify.com",
@@ -237,7 +229,6 @@ describe("action guards", () => {
     expect(res.status).toBe(404);
   });
   it("400 when return is in terminal status", async () => {
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(validSession());
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
       shopDomain: "store.myshopify.com",
@@ -259,7 +250,6 @@ describe("action guards", () => {
 
 describe("Flow A: auto-cancel for non-approved statuses", () => {
   beforeEach(() => {
-    prismaMock.lookupSession.findUnique.mockResolvedValue(validSession());
     prismaMock.shop.findUnique.mockResolvedValue({
       id: "shop-1",
       shopDomain: "store.myshopify.com",
@@ -340,7 +330,6 @@ describe("Flow A: auto-cancel for non-approved statuses", () => {
 
 describe("Flow B: cancellation request for approved returns", () => {
   beforeEach(() => {
-    prismaMock.lookupSession.findUnique.mockResolvedValue(validSession());
     prismaMock.shop.findUnique.mockResolvedValue({
       id: "shop-1",
       shopDomain: "store.myshopify.com",
@@ -428,7 +417,7 @@ describe("Flow B: cancellation request for approved returns", () => {
 
 describe("error path", () => {
   it("500 on unexpected prisma error", async () => {
-    prismaMock.lookupSession.findUnique.mockRejectedValueOnce(new Error("db gone"));
+    verifyPortalSessionMock.mockRejectedValueOnce(new Error("db gone"));
     const res = await action({
       request: jsonReq({ shop: "x", returnCaseId: "rc-1" }, { auth: "Bearer t" }),
       params: {},

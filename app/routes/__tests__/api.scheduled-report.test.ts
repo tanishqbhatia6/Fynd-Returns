@@ -26,9 +26,18 @@ import { loader } from "../api.scheduled-report";
 
 const origEnv = { ...process.env };
 
-function mkReq(headers: Record<string, string> = {}) {
+function mkReq(headers: Record<string, string> = {}, opts: { defaultCronAuth?: boolean } = {}) {
   const h = new Headers();
   for (const [k, v] of Object.entries(headers)) h.set(k, v);
+  const shouldDefaultAuth = opts.defaultCronAuth ?? true;
+  if (
+    shouldDefaultAuth &&
+    process.env.CRON_SECRET &&
+    !h.has("x-cron-secret") &&
+    !h.has("authorization")
+  ) {
+    h.set("x-cron-secret", process.env.CRON_SECRET);
+  }
   return new Request("https://app.example/api/scheduled-report", { headers: h });
 }
 
@@ -55,6 +64,7 @@ function baseSetting(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   process.env = { ...origEnv };
+  process.env.CRON_SECRET = "secret";
   resetPrismaMock(prismaMock);
   sendMailMock.mockReset().mockResolvedValue({ messageId: "x" });
   createTransportMock.mockReset().mockReturnValue({ sendMail: sendMailMock });
@@ -90,7 +100,11 @@ describe("GET /api/scheduled-report", () => {
   it("allows when CRON_SECRET is unset", async () => {
     delete process.env.CRON_SECRET;
     prismaMock.shopSettings.findMany.mockResolvedValueOnce([]);
-    const res = await loader({ request: mkReq(), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq({ host: "localhost:3000" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
   });
 

@@ -8,6 +8,7 @@
 import prisma from "../db.server";
 import { createFyndClientOrError } from "./fynd.server";
 import { createReturnOnFynd } from "./fynd-returns.server";
+import { fyndLogger } from "./observability/logger.server";
 
 export interface ConsolidationResult {
   shopId: string;
@@ -181,7 +182,7 @@ export async function runConsolidationBatch(shopId: string): Promise<Consolidati
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       result.errors.push(`[group:${groupKey}] ${errMsg}`);
-      console.error("[FyndConsolidation] Group error:", groupKey, errMsg);
+      fyndLogger.error({ err, groupKey }, "Fynd consolidation group failed");
     }
   }
 

@@ -9,6 +9,7 @@ const {
   extractFyndJourneyMock,
   getTrackingInfoMock,
   getPickupAddressMock,
+  verifyPortalSessionMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
@@ -20,6 +21,7 @@ const {
   extractFyndJourneyMock: vi.fn(() => [{ status: "delivery_done" }]),
   getTrackingInfoMock: vi.fn(() => ({ awb: "AWB-1" })),
   getPickupAddressMock: vi.fn(() => ({ city: "SF" })),
+  verifyPortalSessionMock: vi.fn(),
 }));
 Object.assign(prismaMock, createPrismaMock());
 (prismaMock as unknown as Record<string, unknown>).fyndOrderMapping = {
@@ -44,14 +46,21 @@ vi.mock("../../lib/fynd-payload.server", () => ({
   getTrackingInfoFromFyndPayload: getTrackingInfoMock,
   getPickupAddressFromFyndPayload: getPickupAddressMock,
 }));
+vi.mock("../../lib/portal-auth.server", () => ({
+  verifyPortalSession: verifyPortalSessionMock,
+}));
 
 import { loader, action } from "../api.portal.fynd-enrich";
 
 function jsonReq(body: unknown, method = "POST") {
   const init: RequestInit = { method };
   if (method !== "GET" && method !== "HEAD") {
+    const payload =
+      body && typeof body === "object"
+        ? { portalToken: "portal-token", sessionId: "session-1", ...body }
+        : body;
     init.headers = { "Content-Type": "application/json" };
-    init.body = typeof body === "string" ? body : JSON.stringify(body);
+    init.body = typeof payload === "string" ? payload : JSON.stringify(payload);
   }
   return new Request("https://app.example/api/portal/fynd-enrich", init);
 }
@@ -74,6 +83,14 @@ beforeEach(() => {
   extractFyndJourneyMock.mockReset().mockReturnValue([{ status: "delivery_done" }]);
   getTrackingInfoMock.mockReset().mockReturnValue({ awb: "AWB-1" });
   getPickupAddressMock.mockReset().mockReturnValue({ city: "SF" });
+  verifyPortalSessionMock.mockReset().mockResolvedValue({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "order_no",
+    lookupValueHash: "hash",
+    lookupValueNorm: "1001",
+    matchedReturnIds: JSON.stringify(new Array(20).fill(0).map((_, i) => `r-${i}`)),
+  });
 });
 
 describe("loader preflight", () => {
@@ -108,6 +125,22 @@ describe("action guards", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
     const res = await action({ request: jsonReq({ shop: "x" }), params: {}, context: {} } as never);
     expect(res.status).toBe(404);
+  });
+
+  it("401 when verified portal session is missing", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: {},
+    });
+    verifyPortalSessionMock.mockResolvedValueOnce(null);
+    const res = await action({
+      request: jsonReq({ shop: "store", type: "order", orderName: "1001" }),
+      params: {},
+      context: {},
+    } as never);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "Verified customer session is required" });
   });
 
   it("returns empty payload when Fynd client unavailable", async () => {

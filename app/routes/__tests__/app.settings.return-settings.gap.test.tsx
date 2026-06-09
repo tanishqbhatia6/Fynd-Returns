@@ -402,9 +402,12 @@ describe("ReturnSettings — gap coverage", () => {
     const labels = Array.from(container.querySelectorAll("label")).filter(
       (l) => l.textContent?.trim() === "delivery_done",
     );
-    const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;
-    fireEvent.click(cb);
+    const cb = labels[labels.length - 1].querySelector("input[type='checkbox']") as HTMLInputElement;
+    await act(async () => {
+      fireEvent.click(cb);
+    });
     await waitFor(() => {
+      expect(cb.checked).toBe(false);
       expect(container.textContent).toMatch(/No statuses selected/);
     });
   });

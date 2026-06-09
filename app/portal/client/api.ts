@@ -22,24 +22,27 @@ export class PortalApi {
     portalToken?: string;
     sessionId?: string;
   }) {
-    return this.fetchJson<LookupResponse>("/lookup", {
+    return this.fetchJson<LookupResponse>(this.withShop("/lookup", body.shop), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
   }
 
-  async verifyOtp(sessionId: string, otp: string) {
-    return this.fetchJson<{ portalToken?: string; error?: string }>("/otp/verify", {
+  async verifyOtp(shop: string, sessionId: string, otp: string) {
+    return this.fetchJson<{ portalToken?: string; sessionId?: string; error?: string }>(
+      this.withShop("/otp/verify", shop),
+      {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId, otp }),
       timeoutMs: 12000,
-    });
+      },
+    );
   }
 
-  async resendOtp(sessionId: string) {
-    return this.fetchJson<{ success?: boolean; error?: string }>("/otp/send", {
+  async resendOtp(shop: string, sessionId: string) {
+    return this.fetchJson<{ success?: boolean; error?: string }>(this.withShop("/otp/send", shop), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId }),
@@ -47,13 +50,15 @@ export class PortalApi {
     });
   }
 
-  async order(shop: string, orderNumber: string) {
+  async order(shop: string, orderNumber: string, auth?: { portalToken?: string; sessionId?: string }) {
     const qs = new URLSearchParams({ shop, orderNumber });
+    if (auth?.portalToken) qs.set("portalToken", auth.portalToken);
+    if (auth?.sessionId) qs.set("sessionId", auth.sessionId);
     return this.fetchJson<OrderResponse>(`/order?${qs.toString()}`);
   }
 
   async createReturn(body: Record<string, unknown>) {
-    return this.fetchJson<CreateReturnResponse>("/create-return", {
+    return this.fetchJson<CreateReturnResponse>(this.withShop("/create-return", String(body.shop ?? "")), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -61,12 +66,17 @@ export class PortalApi {
   }
 
   async enrich(body: { shop: string; type?: string; orderName?: string; returnIds?: string[] }) {
+    const authBody = {
+      portalToken: window.__RPM_AUTH_TOKEN__,
+      sessionId: window.__RPM_AUTH_SESSION_ID__,
+      ...body,
+    };
     return this.fetchJson<{ fyndData?: unknown; returnEnrichments?: Record<string, unknown> }>(
-      "/fynd-enrich",
+      this.withShop("/fynd-enrich", body.shop),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(authBody),
         timeoutMs: 14000,
       },
     );
@@ -74,6 +84,8 @@ export class PortalApi {
 
   async products(shop: string, productId: string) {
     const qs = new URLSearchParams({ shop, productId });
+    if (window.__RPM_AUTH_TOKEN__) qs.set("portalToken", window.__RPM_AUTH_TOKEN__);
+    if (window.__RPM_AUTH_SESSION_ID__) qs.set("sessionId", window.__RPM_AUTH_SESSION_ID__);
     return this.fetchJson<ProductResponse>(`/products?${qs.toString()}`, { timeoutMs: 14000 });
   }
 
@@ -84,7 +96,7 @@ export class PortalApi {
     portalCsrfToken?: string;
     isApproved?: boolean;
   }) {
-    return this.fetchJson<{ success?: boolean; flow?: string; error?: string }>("/cancel-return", {
+    return this.fetchJson<{ success?: boolean; flow?: string; error?: string }>(this.withShop("/cancel-return", body.shop), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -104,7 +116,9 @@ export class PortalApi {
         signal: controller?.signal,
       });
       const data = (await response.json().catch(() => ({}))) as T & { error?: string };
-      this.captureSecurityTokens(data as { portalCsrfToken?: string; portalToken?: string });
+      this.captureSecurityTokens(
+        data as { portalCsrfToken?: string; portalToken?: string; sessionId?: string },
+      );
       if (!response.ok) {
         throw new Error(data.error || `Request failed with ${response.status}`);
       }
@@ -119,8 +133,19 @@ export class PortalApi {
     }
   }
 
-  private captureSecurityTokens(data: { portalCsrfToken?: string; portalToken?: string }) {
+  private captureSecurityTokens(data: {
+    portalCsrfToken?: string;
+    portalToken?: string;
+    sessionId?: string;
+  }) {
     if (data.portalCsrfToken) window.__RPM_PORTAL_CSRF__ = data.portalCsrfToken;
     if (data.portalToken) window.__RPM_AUTH_TOKEN__ = data.portalToken;
+    if (data.sessionId) window.__RPM_AUTH_SESSION_ID__ = data.sessionId;
+  }
+
+  private withShop(path: string, shop: string) {
+    if (!shop) return path;
+    const separator = path.includes("?") ? "&" : "?";
+    return `${path}${separator}${new URLSearchParams({ shop }).toString()}`;
   }
 }

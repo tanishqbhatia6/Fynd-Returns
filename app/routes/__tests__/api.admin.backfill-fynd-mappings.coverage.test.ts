@@ -15,17 +15,23 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateMock, extractAffiliateOrderIdMock } = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateMock: vi.fn(),
-  extractAffiliateOrderIdMock: vi.fn<(...args: unknown[]) => string | null>(),
-}));
+const { prismaMock, authenticateMock, extractAffiliateOrderIdMock, appLoggerMock } = vi.hoisted(
+  () => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateMock: vi.fn(),
+    extractAffiliateOrderIdMock: vi.fn<(...args: unknown[]) => string | null>(),
+    appLoggerMock: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+  }),
+);
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
 vi.mock("../../shopify.server", () => ({ authenticate: { admin: authenticateMock } }));
 vi.mock("../../lib/shopify-admin.server", () => ({
   extractAffiliateOrderId: extractAffiliateOrderIdMock,
+}));
+vi.mock("../../lib/observability/logger.server", () => ({
+  appLogger: appLoggerMock,
 }));
 
 import { action } from "../api.admin.backfill-fynd-mappings";
@@ -77,6 +83,7 @@ beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateMock.mockReset();
   extractAffiliateOrderIdMock.mockReset().mockReturnValue(null);
+  appLoggerMock.error.mockClear();
 });
 
 describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
@@ -107,7 +114,6 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
       shopDomain: "store.myshopify.com",
     });
     extractAffiliateOrderIdMock.mockReturnValueOnce("FY1");
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
@@ -116,8 +122,14 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
     expect(body.metafieldsWritten).toBe(0); // mutation threw
     expect(body.totalMapped).toBe(1); // DB upsert still ran
     expect(prismaMock.fyndOrderMapping.upsert).toHaveBeenCalledTimes(1);
-    expect(errSpy).toHaveBeenCalled();
-    errSpy.mockRestore();
+    expect(appLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        err: expect.any(Error),
+        shopDomain: "store.myshopify.com",
+        shopifyOrderId: "gid://shopify/Order/1",
+      }),
+      "Fynd order mapping metafield write failed",
+    );
   });
 
   it("orderUpdate userErrors do NOT abort — route ignores them and continues", async () => {

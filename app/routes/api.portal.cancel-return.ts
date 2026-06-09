@@ -13,15 +13,25 @@
  */
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { verifyPortalToken, verifyPortalCsrfToken } from "../lib/portal-auth.server";
+import { verifyPortalCsrfToken, verifyPortalSession } from "../lib/portal-auth.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { parsePortalConfig } from "../lib/portal-config.server";
 import { sendCancellationNotification } from "../lib/notification.server";
 import { dispatchWebhookEvent } from "../lib/webhook-dispatch.server";
+import { portalLogger } from "../lib/observability/logger.server";
 
 const TERMINAL_STATUSES = ["rejected", "completed", "cancelled"];
 const AUTO_CANCEL_STATUSES = ["initiated", "pending", "processing", "in progress"];
+
+function parseMatchedReturnIds(raw: string | null | undefined): string[] {
+  try {
+    const parsed = JSON.parse(raw || "[]");
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
@@ -71,45 +81,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    // Auth: Bearer JWT
+    // Auth: verified portal session. This deliberately goes through the shared
+    // verifier so token claims, DB session state, stored token, expiry, and shop
+    // binding stay consistent with the rest of the portal APIs.
     const auth = request.headers.get("Authorization");
     const token = auth?.replace("Bearer ", "");
     if (!token) {
       return withCors(Response.json({ error: "Unauthorized" }, { status: 401 }), request);
     }
 
-    const payload = verifyPortalToken(token);
-    if (!payload) {
+    const verifiedSession = await verifyPortalSession(prisma, { portalToken: token });
+    if (!verifiedSession) {
       return withCors(Response.json({ error: "Invalid token" }, { status: 401 }), request);
     }
 
-    // Verify session
-    const session = await prisma.lookupSession.findUnique({
-      where: { id: payload.sessionId as string },
-    });
-    if (!session?.verifiedAt) {
-      return withCors(Response.json({ error: "Session not verified" }, { status: 401 }), request);
-    }
-    if (session.expiresAt < new Date()) {
-      return withCors(
-        Response.json(
-          { error: "Session expired. Please look up your return again." },
-          { status: 401 },
-        ),
-        request,
-      );
-    }
-
     // Verify customer owns this return
-    let matchedReturnIds: string[] = [];
-    try {
-      // defensive: matchedReturnIds populated by login flow before this endpoint; "[]" fallback unreachable
-      /* v8 ignore start */
-      matchedReturnIds = JSON.parse(session.matchedReturnIds || "[]");
-      /* v8 ignore stop */
-    } catch {
-      // ignore
-    }
+    const matchedReturnIds = parseMatchedReturnIds(verifiedSession.matchedReturnIds);
     if (!matchedReturnIds.includes(returnCaseId)) {
       return withCors(Response.json({ error: "Return not found" }, { status: 404 }), request);
     }
@@ -126,7 +113,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // Cross-shop replay defence: the JWT carries the shop it was issued for. Reject
     // if a token from shop A is being used to act on shop B (P0 finding from QA audit).
-    if (payload.shopId && payload.shopId !== shopRecord.id) {
+    if (verifiedSession.shopId !== shopRecord.id) {
       return withCors(
         Response.json({ error: "Token does not belong to this shop" }, { status: 403 }),
         request,
@@ -145,7 +132,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Fetch return case
     const returnCase = await prisma.returnCase.findFirst({
       where: { id: returnCaseId, shopId: shopRecord.id },
-      include: { items: true },
+      select: {
+        id: true,
+        status: true,
+        refundStatus: true,
+        cancellationRequestedAt: true,
+        customerEmailNorm: true,
+        customerPhoneNorm: true,
+        shopifyOrderName: true,
+        returnRequestNo: true,
+      },
     });
     if (!returnCase) {
       return withCors(Response.json({ error: "Return not found" }, { status: 404 }), request);
@@ -198,7 +194,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           shopName: undefined,
           returnId: returnCase.returnRequestNo ?? returnCase.id,
           customerPhone: returnCase.customerPhoneNorm ?? null,
-        }).catch((e) => console.warn("[portal.cancel-return] Notification failed:", e));
+        }).catch((e) =>
+          portalLogger.warn({ err: e, shopDomain }, "Portal cancel-return notification failed"),
+        );
       }
 
       // Dispatch webhook (fire-and-forget)
@@ -279,7 +277,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       request,
     );
   } catch (err) {
-    console.error("[portal.cancel-return] Error:", err);
+    portalLogger.error({ err }, "Portal cancel-return failed");
     return withCors(
       Response.json(
         { error: err instanceof Error ? err.message : "Internal server error" },

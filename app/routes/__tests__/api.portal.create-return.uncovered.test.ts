@@ -93,6 +93,15 @@ vi.mock("../../lib/rate-limit.server", () => ({
 }));
 vi.mock("../../lib/portal-auth.server", () => ({
   verifyPortalCsrfToken: verifyPortalCsrfMock,
+  verifyPortalSession: vi.fn(async () => ({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "shopper@example.com",
+    matchedReturnIds: null,
+  })),
+  hashLookupValue: vi.fn(() => "hash"),
 }));
 vi.mock("../../lib/shopify-admin.server", () => ({
   fetchOrder: fetchOrderMock,
@@ -208,6 +217,7 @@ beforeEach(() => {
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
   fetchOrderMock.mockReset().mockResolvedValue({
     id: "gid://shopify/Order/1",
+    email: "shopper@example.com",
     displayFulfillmentStatus: "FULFILLED",
     displayFinancialStatus: "PAID",
     sourceName: "web",
@@ -287,6 +297,7 @@ describe("fynd retry on createReturnOnFynd throw", () => {
     (prismaMock.returnCase.findUnique as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     fetchOrderMock.mockResolvedValue({
       id: "gid://shopify/Order/1",
+    email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       affiliateOrderId: "AFF-RETRY",
@@ -765,7 +776,7 @@ describe("item cap edge — preCheck rejections", () => {
 // ────────────────────────── Manual mode flows ──────────────────────────
 
 describe("manual mode", () => {
-  it("400 when manual mode without email", async () => {
+  it("403 when manual mode has no verified customer contact", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop());
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     const res = await action({
@@ -778,8 +789,8 @@ describe("manual mode", () => {
       params: {},
       context: {},
     } as never);
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/Email is required/i);
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toMatch(/Verified customer|Verify your order contact/i);
   });
 
   it("400 when manual mode with malformed email", async () => {
@@ -1030,6 +1041,7 @@ describe("server-side fulfillment gate", () => {
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     fetchOrderMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/1",
+    email: "shopper@example.com",
       displayFulfillmentStatus: "UNFULFILLED",
       displayFinancialStatus: "PAID",
       lineItems: [],
@@ -1048,6 +1060,7 @@ describe("server-side fulfillment gate", () => {
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     fetchOrderMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/1",
+    email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "REFUNDED",
       lineItems: [],
@@ -1356,6 +1369,7 @@ describe("line-item ID resolution path", () => {
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     fetchOrderMock.mockResolvedValue({
       id: "gid://shopify/Order/1",
+    email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       sourceName: "web",
@@ -1394,6 +1408,7 @@ describe("line-item ID resolution path", () => {
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     fetchOrderMock.mockResolvedValue({
       id: "gid://shopify/Order/1",
+    email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       affiliateOrderId: null,

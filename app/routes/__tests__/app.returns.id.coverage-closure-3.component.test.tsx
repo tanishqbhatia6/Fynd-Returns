@@ -226,10 +226,10 @@ describe("app.returns.$id — coverage closure round 3", () => {
   });
 
   it("computeAdminReturnState: refund-flagged Fynd status -> processing branch (line 99)", async () => {
-    const rc = makeReturnCase({ status: "approved", refundStatus: null });
+    const rc = makeReturnCase({ status: "approved", refundStatus: "in_progress" });
     const { container } = renderWithRouter(Component, {
       initialEntries: ["/app/returns/ret_cl3_001"],
-      // fyndCurrentStatus = "refund_initiated" should match /(^|_)refund(_|$)/
+      // `refund_initiated` from Fynd is ignored unless our refund state confirms work is active.
       loaderData: makeLoaderData({
         returnCase: rc,
         fyndCurrentStatus: "refund_initiated",

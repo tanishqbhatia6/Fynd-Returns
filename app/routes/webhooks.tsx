@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { webhookLogger } from "../lib/observability/logger.server";
 
 /**
  * Catch-all webhook handler at /webhooks
@@ -14,13 +15,14 @@ import prisma from "../db.server";
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { topic, shop, payload } = await authenticate.webhook(request);
 
-  console.log(`[webhooks] Received topic=${topic} shop=${shop}`);
+  webhookLogger.info({ topic, shop }, "Shopify webhook received");
 
   switch (topic) {
     case "CUSTOMERS_DATA_REQUEST": {
       const customerEmail = payload.customer?.email?.toLowerCase().trim() ?? "";
-      console.log(
-        `[webhooks] customers/data_request shop=${shop} email=${customerEmail ? "[present]" : "[missing]"}`,
+      webhookLogger.info(
+        { topic, shop, hasCustomerEmail: Boolean(customerEmail) },
+        "Shopify customer data request webhook received",
       );
 
       try {
@@ -39,20 +41,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 })
               : [];
 
-          console.log(
-            `[webhooks] customers/data_request found ${returnCases.length} return case(s)`,
+          webhookLogger.info(
+            { topic, shop, returnCaseCount: returnCases.length },
+            "Shopify customer data request lookup completed",
           );
         }
       } catch (err) {
-        console.error("[webhooks] customers/data_request error:", err);
+        webhookLogger.error(
+          { topic, shop, err },
+          "Shopify customer data request webhook failed",
+        );
       }
       break;
     }
 
     case "CUSTOMERS_REDACT": {
       const customerEmail = payload.customer?.email?.toLowerCase().trim() ?? "";
-      console.log(
-        `[webhooks] customers/redact shop=${shop} email=${customerEmail ? "[present]" : "[missing]"}`,
+      webhookLogger.info(
+        { topic, shop, hasCustomerEmail: Boolean(customerEmail) },
+        "Shopify customer redact webhook received",
       );
 
       try {
@@ -141,18 +148,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 });
               }
 
-              console.log(`[webhooks] customers/redact redacted ${returnCases.length} case(s)`);
+              webhookLogger.info(
+                { topic, shop, returnCaseCount: returnCases.length },
+                "Shopify customer redact completed",
+              );
             }
           }
         }
       } catch (err) {
-        console.error("[webhooks] customers/redact error:", err);
+        webhookLogger.error({ topic, shop, err }, "Shopify customer redact webhook failed");
       }
       break;
     }
 
     case "SHOP_REDACT": {
-      console.log(`[webhooks] shop/redact shop=${shop}`);
+      webhookLogger.info({ topic, shop }, "Shopify shop redact webhook received");
 
       try {
         const shopRecord = await prisma.shop.findUnique({
@@ -201,16 +211,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           await prisma.session.deleteMany({ where: { shop } });
           await prisma.shop.delete({ where: { id: shopRecord.id } });
 
-          console.log(`[webhooks] shop/redact deleted all data for shop=${shop}`);
+          webhookLogger.info({ topic, shop }, "Shopify shop redact completed");
         }
       } catch (err) {
-        console.error("[webhooks] shop/redact error:", err);
+        webhookLogger.error({ topic, shop, err }, "Shopify shop redact webhook failed");
       }
       break;
     }
 
     default:
-      console.log(`[webhooks] Unhandled topic: ${topic}`);
+      webhookLogger.info({ topic, shop }, "Unhandled Shopify webhook topic");
   }
 
   return new Response();

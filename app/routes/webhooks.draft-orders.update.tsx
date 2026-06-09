@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { webhookLogger } from "../lib/observability/logger.server";
 
 /**
  * Shopify draft_orders/update webhook handler.
@@ -153,7 +154,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
   } catch (err) {
-    console.error("[webhook:draft_orders/update]", err instanceof Error ? err.message : err);
+    webhookLogger.error(
+      { topic: "DRAFT_ORDERS_UPDATE", shop, err },
+      "Draft order update webhook failed",
+    );
   }
 
   return new Response();

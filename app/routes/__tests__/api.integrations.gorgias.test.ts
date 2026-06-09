@@ -4,7 +4,7 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
 const { prismaMock, decryptMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  decryptMock: vi.fn((v: string) => v), // no-op by default (treat as plaintext)
+  decryptMock: vi.fn((v: string) => (v ?? "").replace(/^enc:/, "")),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -16,14 +16,18 @@ vi.mock("../../lib/encryption.server", () => ({
 import { loader } from "../api.integrations.gorgias";
 
 function mkReq(qs: string, headers: Record<string, string> = {}) {
-  return new Request(`https://app.example/api/integrations/gorgias?${qs}`, {
+  const hasApiKey =
+    /(?:^|&)api_key=/.test(qs) ||
+    Object.keys(headers).some((key) => key.toLowerCase() === "x-gorgias-api-key");
+  const finalQs = qs && !hasApiKey ? `${qs}&api_key=secret` : qs;
+  return new Request(`https://app.example/api/integrations/gorgias?${finalQs}`, {
     headers,
   });
 }
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  decryptMock.mockReset().mockImplementation((v: string) => v);
+  decryptMock.mockReset().mockImplementation((v: string) => (v ?? "").replace(/^enc:/, ""));
 });
 
 describe("GET /api/integrations/gorgias (widget)", () => {
@@ -42,6 +46,22 @@ describe("GET /api/integrations/gorgias (widget)", () => {
     const res = await loader({ request: mkReq("shop=x"), params: {}, context: {} } as never);
     const html = await res.text();
     expect(html).toContain("Not Configured");
+  });
+
+  it("403 when Gorgias is enabled without a configured API key", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+    });
+    const res = await loader({
+      request: mkReq("shop=x&email=a@b.com"),
+      params: {},
+      context: {},
+    } as never);
+    expect(res.status).toBe(403);
+    const html = await res.text();
+    expect(html).toContain("Unauthorized");
+    expect(html).toContain("Gorgias API key is not configured");
   });
 
   it("401 + Unauthorized card when API key mismatches", async () => {
@@ -63,7 +83,7 @@ describe("GET /api/integrations/gorgias (widget)", () => {
   it("renders 'No Data' card when neither email nor order provided", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     const res = await loader({ request: mkReq("shop=x"), params: {}, context: {} } as never);
     const html = await res.text();
@@ -73,7 +93,7 @@ describe("GET /api/integrations/gorgias (widget)", () => {
   it("renders 'No Returns' card when none found by email", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     const res = await loader({
@@ -88,7 +108,7 @@ describe("GET /api/integrations/gorgias (widget)", () => {
   it("renders return cards on match (with risk + gift badges when applicable)", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
@@ -121,7 +141,7 @@ describe("GET /api/integrations/gorgias (widget)", () => {
   it("falls back to query-without-new-fields when select throws", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     // First call throws (missing column), second call succeeds with smaller select
     prismaMock.returnCase.findMany
@@ -152,7 +172,7 @@ describe("GET /api/integrations/gorgias (widget)", () => {
   it("matches order param when email absent", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     await loader({ request: mkReq("shop=x&order=%231001"), params: {}, context: {} } as never);

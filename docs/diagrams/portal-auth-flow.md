@@ -21,7 +21,7 @@ Customer                    Portal SPA                   Server
    │                            │  POST /api/portal/otp/send│
    │                            │ ────────────────────────► │
    │                            │                           │ Generate 6-digit OTP
-   │                            │                           │ Hash OTP (SHA-256)
+   │                            │                           │ Hash OTP (bcrypt)
    │                            │                           │ Store hash + sentAt
    │                            │                           │ Send email/SMS
    │                            │                           │
@@ -61,7 +61,7 @@ Customer                    Portal SPA                   Server
 |---------|--------|
 | OTP length | 6 digits |
 | OTP expiry | 5 minutes from generation |
-| OTP hash | SHA-256 (plaintext never stored) |
+| OTP hash | bcrypt (plaintext never stored; legacy SHA-256 accepted only for pre-rollout sessions) |
 | Max OTP send attempts | 5 per 5-minute window |
 | Max verify attempts | 10 per session, lockout at 0 remaining |
 | JWT TTL | 1 hour |
@@ -73,9 +73,9 @@ Customer                    Portal SPA                   Server
 ## Dev Mode Behavior
 
 When `NODE_ENV !== "production"` and SMTP is not configured:
-- OTP is logged to server console (`[OTP] code=123456`)
+- OTP is emitted only through the structured redacted development logger
 - No email is actually sent
-- JWT secret falls back to a dev default (with console warning)
+- JWT secret falls back to a dev default (with a structured warning)
 
 ## Session Cleanup
 

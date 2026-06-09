@@ -6,7 +6,6 @@ import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import {
   getTrackingInfoFromFyndPayload,
   extractFyndJourney,
-  getPickupAddressFromFyndPayload,
   parseFyndOrderDetailsForTab,
   type FyndOrderDetailsTab,
 } from "../lib/fynd-payload.server";
@@ -23,18 +22,172 @@ import shopify from "../shopify.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { getPortalLabels } from "../lib/portal-i18n";
 import { sendOtpEmail } from "../lib/notification.server";
-import { createPortalCsrfToken } from "../lib/portal-auth.server";
+import {
+  createPortalCsrfToken,
+  hashLookupValue,
+  verifyPortalSession,
+  type VerifiedPortalSession,
+} from "../lib/portal-auth.server";
+import { portalLogger } from "../lib/observability/logger.server";
 
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 min
 const OTP_COOLDOWN_MS = 60_000; // 60s resend cooldown
 const MAX_OTP_ATTEMPTS = 5;
 // Cost factor — 10 is industry standard, ~50ms per hash. Verifying becomes
-// significantly slower than the previous unsalted SHA-256, defeating rainbow tables
+// significantly slower than the previous unsalted digest, defeating rainbow tables
 // and slowing brute force enough to make the account-level lockout meaningful.
 const BCRYPT_COST = 10;
 
 async function hashOtp(otp: string): Promise<string> {
   return bcrypt.hash(otp, BCRYPT_COST);
+}
+
+function normalizeContactLookupValue(lookupType: string, value: unknown): string {
+  const raw = String(value).trim();
+  return lookupType === "phone" ? raw.replace(/[^\d+]/g, "") : raw.toLowerCase();
+}
+
+function portalSessionMatchesContact(
+  session: VerifiedPortalSession,
+  contacts: { email?: string | null; phone?: string | null },
+): boolean {
+  const email = contacts.email?.trim().toLowerCase();
+  const phone = contacts.phone?.trim().replace(/[^\d+]/g, "");
+  if (session.lookupType === "email" && email) {
+    return session.lookupValueHash === hashLookupValue(email);
+  }
+  if (session.lookupType === "phone" && phone) {
+    return session.lookupValueHash === hashLookupValue(phone);
+  }
+  return false;
+}
+
+type PortalReturnResponse = {
+  id: string;
+  returnRequestNo: string | null;
+  returnRequestId: string;
+  shopifyOrderName: string | null;
+  status: string | null;
+  refundStatus: string | null;
+  resolutionType: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  forwardAwb: string | null;
+  returnAwb: string | null;
+  fyndCurrentStatus: string | null;
+  items: Array<{
+    id: string;
+    title: string;
+    sku: string | null;
+    qty: number;
+    quantity: number;
+    reasonCode: string | null;
+    imageUrl: string | null;
+  }>;
+  events: Array<{ id: string; eventType: string | null; happenedAt: Date | string }>;
+  trackingInfo?: unknown;
+  returnJourney?: unknown;
+  returnLabel?: {
+    carrier?: string | null;
+    trackingNumber?: string | null;
+    labelUrl?: string | null;
+    qrCodeUrl?: string | null;
+  } | null;
+  returnInstructions?: string;
+  cancellationRequestedAt?: Date | string | null;
+  _needsFyndEnrich: boolean;
+};
+
+function parseReturnLabel(
+  returnLabelJson: string | null | undefined,
+  returnLabelUrl: string | null | undefined,
+): PortalReturnResponse["returnLabel"] {
+  let parsed: PortalReturnResponse["returnLabel"] = null;
+  try {
+    if (returnLabelJson) parsed = JSON.parse(returnLabelJson) as PortalReturnResponse["returnLabel"];
+  } catch {
+    parsed = null;
+  }
+  if (!parsed && !returnLabelUrl) return null;
+  return {
+    carrier: parsed?.carrier ?? null,
+    trackingNumber: parsed?.trackingNumber ?? null,
+    labelUrl: parsed?.labelUrl ?? returnLabelUrl ?? null,
+    qrCodeUrl: parsed?.qrCodeUrl ?? null,
+  };
+}
+
+function toPortalReturnResponse(
+  r: {
+    id: string;
+    returnRequestNo?: string | null;
+    shopifyOrderName?: string | null;
+    status?: string | null;
+    refundStatus?: string | null;
+    resolutionType?: string | null;
+    createdAt: Date | string;
+    updatedAt: Date | string;
+    forwardAwb?: string | null;
+    returnAwb?: string | null;
+    fyndCurrentStatus?: string | null;
+    returnLabelJson?: string | null;
+    returnLabelUrl?: string | null;
+    cancellationRequestedAt?: Date | string | null;
+    fyndShipmentId?: string | null;
+    items?: Array<{
+      id: string;
+      shopifyLineItemId?: string | null;
+      title?: string | null;
+      sku?: string | null;
+      qty?: number;
+      reasonCode?: string | null;
+      imageUrl?: string | null;
+    }>;
+    events?: Array<{ id: string; eventType?: string | null; happenedAt: Date | string }>;
+  },
+  extras: {
+    trackingInfo?: unknown;
+    returnJourney?: unknown;
+    returnInstructions?: string;
+  } = {},
+): PortalReturnResponse {
+  const approved = ["approved", "completed"].includes(String(r.status ?? "").toLowerCase());
+  const returnLabel = approved ? parseReturnLabel(r.returnLabelJson, r.returnLabelUrl) : null;
+  const response: PortalReturnResponse = {
+    id: r.id,
+    returnRequestNo: r.returnRequestNo ?? null,
+    returnRequestId: r.returnRequestNo ?? r.id,
+    shopifyOrderName: r.shopifyOrderName ?? null,
+    status: r.status ?? null,
+    refundStatus: r.refundStatus ?? null,
+    resolutionType: r.resolutionType ?? null,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+    forwardAwb: r.forwardAwb ?? null,
+    returnAwb: r.returnAwb ?? null,
+    fyndCurrentStatus: r.fyndCurrentStatus ?? null,
+    items: (r.items ?? []).map((item) => ({
+      id: item.id,
+      title: item.title || item.sku || item.shopifyLineItemId || "Item",
+      sku: item.sku ?? null,
+      qty: item.qty ?? 1,
+      quantity: item.qty ?? 1,
+      reasonCode: item.reasonCode ?? null,
+      imageUrl: item.imageUrl ?? null,
+    })),
+    events: (r.events ?? []).map((event) => ({
+      id: event.id,
+      eventType: event.eventType ?? null,
+      happenedAt: event.happenedAt,
+    })),
+    cancellationRequestedAt: r.cancellationRequestedAt ?? null,
+    _needsFyndEnrich: !!(r.shopifyOrderName && r.fyndShipmentId),
+  };
+  if (extras.trackingInfo) response.trackingInfo = extras.trackingInfo;
+  if (extras.returnJourney) response.returnJourney = extras.returnJourney;
+  if (returnLabel) response.returnLabel = returnLabel;
+  if (approved && extras.returnInstructions) response.returnInstructions = extras.returnInstructions;
+  return response;
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -103,47 +256,62 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return withCors(Response.json({ error: "Shop not found" }, { status: 404 }), request);
     }
 
-    // ── OTP gate (configurable per shop) ──
-    // If portalOtpEmailEnabled / portalOtpSmsEnabled is true for this shop,
-    // gate results behind OTP verification.
+    // ── OTP gate (secure-by-default) ──
+    // Customer contact lookups are always gated behind verified identity.
     // First call (no portalToken): create session + send OTP → return { requiresOtp, sessionId }.
     // Second call (with portalToken): verify session token → proceed to return results.
-    const settingsAny = shopRecord.settings as
-      | (typeof shopRecord.settings & {
-          portalOtpEmailEnabled?: boolean;
-          portalOtpSmsEnabled?: boolean;
-        })
-      | null;
-    const otpEmailEnabled = settingsAny?.portalOtpEmailEnabled ?? false;
-    const otpSmsEnabled = settingsAny?.portalOtpSmsEnabled ?? false;
+    const otpEmailEnabled = true;
+    const otpSmsEnabled = true;
     const otpRequired =
       (otpEmailEnabled && normalizedLookupType === "email") ||
       (otpSmsEnabled && normalizedLookupType === "phone");
+    let verifiedSessionForNonContactLookup: VerifiedPortalSession | null = null;
 
     if (otpRequired) {
-      const contactNorm = String(lookupValue).toLowerCase().trim();
-      const lookupValueHash = crypto.createHash("sha256").update(contactNorm).digest("hex");
+      const contactNorm = normalizeContactLookupValue(normalizedLookupType, lookupValue);
+      const lookupValueHash = hashLookupValue(contactNorm);
 
       if (!portalToken) {
+        if (normalizedLookupType === "phone") {
+          return withCors(
+            Response.json(
+              {
+                error:
+                  "Phone verification is not configured for this portal. Use email verification or contact support.",
+                phoneVerificationUnavailable: true,
+              },
+              { status: 400 },
+            ),
+            request,
+          );
+        }
+
         // First call — create or reuse a session and send OTP
         const existing = sessionId
           ? await prisma.lookupSession.findUnique({ where: { id: sessionId } })
           : null;
+        const reusableExisting =
+          existing &&
+          existing.shopId === shopRecord.id &&
+          existing.lookupType === normalizedLookupType &&
+          existing.lookupValueHash === lookupValueHash
+            ? existing
+            : null;
 
         // Reuse existing unexpired session if resend requested (sessionId provided)
         if (
-          existing &&
-          existing.expiresAt > new Date() &&
-          existing.attemptsCount < MAX_OTP_ATTEMPTS
+          reusableExisting &&
+          reusableExisting.expiresAt > new Date() &&
+          reusableExisting.attemptsCount < MAX_OTP_ATTEMPTS
         ) {
-          const cooldownRemaining = existing.otpSentAt
-            ? Math.max(0, OTP_COOLDOWN_MS - (Date.now() - existing.otpSentAt.getTime()))
+          const cooldownRemaining = reusableExisting.otpSentAt
+            ? Math.max(0, OTP_COOLDOWN_MS - (Date.now() - reusableExisting.otpSentAt.getTime()))
             : 0;
           if (cooldownRemaining > 0) {
             return withCors(
               Response.json({
                 requiresOtp: true,
-                sessionId: existing.id,
+                sessionId: reusableExisting.id,
                 cooldownMs: cooldownRemaining,
               }),
               request,
@@ -153,19 +321,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           const otp = String(crypto.randomInt(100000, 1000000));
           const otpHash = await hashOtp(otp);
           await prisma.lookupSession.update({
-            where: { id: existing.id },
+            where: { id: reusableExisting.id },
             data: {
               otpTarget: otpHash,
               otpSentAt: new Date(),
-              attemptsCount: existing.attemptsCount + 1,
+              attemptsCount: reusableExisting.attemptsCount + 1,
             },
           });
           try {
             await sendOtpEmail({ shopDomain, to: contactNorm, otp });
           } catch (e) {
-            console.warn("[lookup OTP] email send failed:", e);
+            portalLogger.warn({ err: e, shopDomain }, "Portal lookup OTP email send failed");
           }
-          return withCors(Response.json({ requiresOtp: true, sessionId: existing.id }), request);
+          return withCors(
+            Response.json({ requiresOtp: true, sessionId: reusableExisting.id }),
+            request,
+          );
         }
 
         // Account-level lockout — same gate as the verify endpoint, applied at OTP-send
@@ -216,12 +387,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         try {
           await sendOtpEmail({ shopDomain, to: contactNorm, otp });
         } catch (e) {
-          console.warn("[lookup OTP] email send failed:", e);
+          portalLogger.warn({ err: e, shopDomain }, "Portal lookup OTP email send failed");
         }
         return withCors(Response.json({ requiresOtp: true, sessionId: session.id }), request);
       }
 
-      // Second call — portalToken provided: verify it against DB session
+      // Second call — portalToken provided: verify it against DB session and
+      // bind it to the exact contact being queried. A verified token for one
+      // email/phone must never authorize lookup of another contact.
       const session = sessionId
         ? await prisma.lookupSession.findUnique({ where: { id: sessionId } })
         : null;
@@ -243,17 +416,48 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           request,
         );
       }
-      // Token must match what was stored at verify time
-      if (session.portalToken !== portalToken) {
+      const verifiedContactSession = await verifyPortalSession(prisma, {
+        portalToken,
+        sessionId,
+        shopId: shopRecord.id,
+        allowedLookupTypes: [normalizedLookupType],
+      });
+      // Token must match what was stored at verify time and must prove the
+      // same lookup value hash as this request.
+      if (
+        !verifiedContactSession ||
+        session.portalToken !== portalToken ||
+        verifiedContactSession.lookupValueHash !== lookupValueHash
+      ) {
         return withCors(
           Response.json(
-            { error: "Invalid session token", requiresOtp: true, sessionId: session.id },
+            {
+              error: "Invalid session token for this lookup value",
+              requiresOtp: true,
+              sessionId: session.id,
+            },
             { status: 401 },
           ),
           request,
         );
       }
       // Verified — proceed to return results below
+    } else {
+      verifiedSessionForNonContactLookup = await verifyPortalSession(prisma, {
+        portalToken,
+        sessionId,
+        shopId: shopRecord.id,
+        allowedLookupTypes: ["email", "phone"],
+      });
+      if (!verifiedSessionForNonContactLookup) {
+        return withCors(
+          Response.json(
+            { error: "Verify your email or phone before searching by this value." },
+            { status: 401 },
+          ),
+          request,
+        );
+      }
     }
 
     const norm = String(lookupValue).toLowerCase().trim();
@@ -281,7 +485,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         { returnAwb: { contains: norm, mode: "insensitive" } },
       ];
     } else if (normalizedLookupType === "phone") {
-      const phoneNorm = norm.replace(/[\s\-\+\(\)]/g, "");
+      const phoneNorm = norm.replace(/[\s+()-]/g, "");
       where.OR = [{ customerPhoneNorm: { contains: phoneNorm, mode: "insensitive" } }];
     } else {
       where.OR = [
@@ -290,17 +494,65 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       ];
     }
 
-    // Single query: fetch full records with includes; matched IDs derive from result.
+    // Single query: fetch only portal-safe fields; matched IDs derive from result.
     // (Previous implementation issued two findMany calls — id-only then full include — which
     // doubled DB round-trips with no benefit since the predicate is identical.)
-    const returnsRaw = await prisma.returnCase.findMany({
+    const returnsRawAll = await prisma.returnCase.findMany({
       where,
-      include: {
-        items: true,
-        events: { orderBy: { happenedAt: "desc" }, take: 10 },
+      select: {
+        id: true,
+        returnRequestNo: true,
+        shopifyOrderName: true,
+        status: true,
+        refundStatus: true,
+        resolutionType: true,
+        createdAt: true,
+        updatedAt: true,
+        forwardAwb: true,
+        returnAwb: true,
+        fyndCurrentStatus: true,
+        fyndReturnId: true,
+        fyndReturnNo: true,
+        fyndShipmentId: true,
+        fyndPayloadJson: true,
+        returnLabelJson: true,
+        returnLabelUrl: true,
+        cancellationRequestedAt: true,
+        customerEmailNorm: true,
+        customerPhoneNorm: true,
+        items: {
+          select: {
+            id: true,
+            shopifyLineItemId: true,
+            title: true,
+            sku: true,
+            qty: true,
+            reasonCode: true,
+            imageUrl: true,
+            fyndBagId: true,
+            fyndShipmentId: true,
+          },
+        },
+        events: {
+          orderBy: { happenedAt: "desc" },
+          take: 10,
+          select: {
+            id: true,
+            eventType: true,
+            happenedAt: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
+    const returnsRaw = verifiedSessionForNonContactLookup
+      ? returnsRawAll.filter((r) =>
+          portalSessionMatchesContact(verifiedSessionForNonContactLookup, {
+            email: r.customerEmailNorm,
+            phone: r.customerPhoneNorm,
+          }),
+        )
+      : returnsRawAll;
     const matchedReturnIds = returnsRaw.map((r) => r.id);
 
     // Persist matched IDs to the OTP-verified session so the cancel-return /
@@ -346,39 +598,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           : extractFyndJourney(payload, "return")
         : [];
       /* v8 ignore stop */
-      const pickupAddress = getPickupAddressFromFyndPayload(payload);
-
-      let returnLabelInfo: {
-        carrier?: string | null;
-        trackingNumber?: string | null;
-        labelUrl?: string | null;
-        qrCodeUrl?: string | null;
-      } | null = null;
-      try {
-        if ((r as { returnLabelJson?: string | null }).returnLabelJson) {
-          returnLabelInfo = JSON.parse((r as { returnLabelJson?: string | null }).returnLabelJson!);
-        }
-      } catch {
-        /* ignore */
-      }
-
-      /* v8 ignore start - defensive `|| ""` for null status */
-      const isApproved = ["approved", "completed"].includes((r.status || "").toLowerCase());
-      /* v8 ignore stop */
-      return {
-        ...r,
+      return toPortalReturnResponse(r, {
         trackingInfo: trackingInfo ?? undefined,
         returnJourney,
-        pickupAddress: pickupAddress ?? undefined,
-        returnLabelUrl: isApproved
-          ? (r as { returnLabelUrl?: string | null }).returnLabelUrl
-          : undefined,
-        returnLabelInfo: isApproved ? returnLabelInfo : undefined,
-        returnInstructions: isApproved ? defaultReturnInstructions || undefined : undefined,
-        /* v8 ignore start - defensive enrich-flag short-circuit on null fields */
-        _needsFyndEnrich: !!(r.shopifyOrderName && r.fyndShipmentId),
-        /* v8 ignore stop */
-      };
+        returnInstructions: defaultReturnInstructions || undefined,
+      });
     });
 
     returns.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -388,6 +612,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       name: string;
       createdAt: string;
       email?: string | null;
+      phone?: string | null;
       processedAt?: string | null;
       closedAt?: string | null;
       cancelledAt?: string | null;
@@ -427,6 +652,51 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       fyndData?: (FyndOrderDetailsTab & { forwardJourney?: unknown }) | null;
       _needsFyndEnrich?: boolean;
     };
+
+    function toPortalOrderLookupResponse(order: PortalOrder): PortalOrder {
+      return {
+        id: order.id,
+        name: order.name,
+        createdAt: order.createdAt,
+        processedAt: order.processedAt,
+        closedAt: order.closedAt,
+        cancelledAt: order.cancelledAt,
+        totalPrice: order.totalPrice,
+        subtotalPrice: order.subtotalPrice,
+        totalDiscounts: order.totalDiscounts,
+        currencyCode: order.currencyCode,
+        displayFinancialStatus: order.displayFinancialStatus,
+        displayFulfillmentStatus: order.displayFulfillmentStatus,
+        lineItems: (order.lineItems ?? []).map((item) => ({
+          id: item.id,
+          title: item.title,
+          variantTitle: item.variantTitle ?? null,
+          sku: item.sku ?? null,
+          quantity: item.quantity,
+          price: item.price ?? null,
+          discountedPrice: item.discountedPrice ?? null,
+          imageUrl: item.imageUrl ?? null,
+        })),
+        fulfillments: (order.fulfillments ?? []).map((fulfillment) => ({
+          id: fulfillment.id,
+          status: fulfillment.status,
+          createdAt: fulfillment.createdAt,
+          updatedAt: fulfillment.updatedAt ?? null,
+          deliveredAt: fulfillment.deliveredAt ?? null,
+          displayStatus: fulfillment.displayStatus ?? null,
+          estimatedDeliveryAt: fulfillment.estimatedDeliveryAt ?? null,
+          inTransitAt: fulfillment.inTransitAt ?? null,
+          totalQuantity: fulfillment.totalQuantity ?? null,
+          trackingInfo: (fulfillment.trackingInfo ?? []).map((tracking) => ({
+            number: tracking.number ?? null,
+            url: tracking.url ?? null,
+            company: tracking.company ?? null,
+          })),
+        })),
+        _needsFyndEnrich: order._needsFyndEnrich === true,
+      };
+    }
+
     const shopSession = await prisma.session.findFirst({ where: { shop: shopDomain } });
     /* v8 ignore start - defensive `?? ""` for missing session token */
     const shopAccessToken = shopSession?.accessToken ?? "";
@@ -444,7 +714,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           _needsFyndEnrich: true,
         }));
       } catch (err) {
-        console.error("Portal lookup orders by email:", err);
+        portalLogger.error({ err, shopDomain }, "Portal lookup orders by email failed");
       }
     } else if (normalizedLookupType === "phone") {
       // Shopify doesn't have a documented phone: filter on orders, so use free-text search
@@ -457,7 +727,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           _needsFyndEnrich: true,
         }));
       } catch (err) {
-        console.error("Portal lookup orders by phone:", err);
+        portalLogger.error({ err, shopDomain }, "Portal lookup orders by phone failed");
       }
     } else if (normalizedLookupType === "order_no" || normalizedLookupType === "return_no") {
       const orderNumber = rawValue.replace(/^#/, "");
@@ -469,7 +739,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
         }
       } catch (err) {
-        console.error("Portal lookup order by order_no (direct):", err);
+        portalLogger.error({ err, shopDomain }, "Portal lookup direct order fetch failed");
       }
 
       // If Shopify name search didn't find it, try FyndOrderMapping by fyndOrderId or shopifyOrderName
@@ -505,7 +775,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
         } catch (err) {
           /* v8 ignore start - defensive non-fatal catch */
-          console.error("Portal lookup order via FyndOrderMapping:", err);
+          portalLogger.error(
+            { err, shopDomain },
+            "Portal lookup order via FyndOrderMapping failed",
+          );
           /* v8 ignore stop */
         }
       }
@@ -522,7 +795,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 { shopifyOrderName: { equals: `#${orderNumber}`, mode: "insensitive" } },
               ],
             },
-            include: { items: true },
+            select: {
+              id: true,
+              shopifyOrderId: true,
+              shopifyOrderName: true,
+              createdAt: true,
+              customerEmailNorm: true,
+              fyndPayloadJson: true,
+              fyndShipmentId: true,
+              items: {
+                select: {
+                  id: true,
+                  shopifyLineItemId: true,
+                  notes: true,
+                  sku: true,
+                  qty: true,
+                },
+              },
+            },
             orderBy: { createdAt: "desc" },
             take: 5,
           });
@@ -538,7 +828,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                   orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
                 }
               } catch (err) {
-                console.error("Portal lookup order via GID:", err);
+                portalLogger.error({ err, shopDomain }, "Portal lookup order via GID failed");
               }
             }
             if (orders.length === 0 && rc.shopifyOrderName) {
@@ -553,7 +843,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                   orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
                 }
               } catch (err) {
-                console.error("Portal lookup order via ReturnCase.shopifyOrderName:", err);
+                portalLogger.error(
+                  { err, shopDomain },
+                  "Portal lookup order via ReturnCase shopifyOrderName failed",
+                );
               }
             }
 
@@ -593,7 +886,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
         } catch (err) {
           /* v8 ignore start - defensive non-fatal catch */
-          console.error("Portal lookup order via ReturnCase.fyndOrderId:", err);
+          portalLogger.error(
+            { err, shopDomain },
+            "Portal lookup order via ReturnCase fyndOrderId failed",
+          );
           /* v8 ignore stop */
         }
       }
@@ -791,7 +1087,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
         } catch (err) {
           /* v8 ignore start - defensive non-fatal catch */
-          console.error("Portal lookup Fynd order discovery:", err);
+          portalLogger.error({ err, shopDomain }, "Portal lookup Fynd order discovery failed");
           /* v8 ignore stop */
         }
       }
@@ -854,7 +1150,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             }
           }
         } catch (err) {
-          console.error("Portal lookup Fynd enrich:", err);
+          portalLogger.error({ err, shopDomain }, "Portal lookup Fynd enrichment failed");
         }
       }
     }
@@ -879,6 +1175,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
+    if (verifiedSessionForNonContactLookup) {
+      orders = orders.filter((order) =>
+        portalSessionMatchesContact(verifiedSessionForNonContactLookup, {
+          email: order.email,
+          phone: order.phone ?? order.shippingAddress?.phone,
+        }),
+      );
+    }
+
+    orders = orders.map(toPortalOrderLookupResponse);
+
     // Issue a shop-bound CSRF token so subsequent state-changing portal calls
     // (cancel-return, etc.) can present it. Same token used by /api/portal/order.
     const portalCsrfToken = createPortalCsrfToken(shopDomain);
@@ -887,7 +1194,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       request,
     );
   } catch (err) {
-    console.error("Portal lookup:", err);
+    portalLogger.error({ err }, "Portal lookup failed");
     return withCors(
       Response.json({ error: "Something went wrong. Please try again." }, { status: 500 }),
       request,

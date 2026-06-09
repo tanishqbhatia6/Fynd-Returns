@@ -1,5 +1,6 @@
 import prisma from "../db.server";
 import type { Shop, ShopSettings } from "@prisma/client";
+import { appLogger } from "./observability/logger.server";
 
 type ShopWithSettings = Shop & { settings: ShopSettings | null };
 
@@ -86,7 +87,7 @@ export async function syncShopLocaleAndCurrency(
     }
     return { locale, currency, timezone };
   } catch (err) {
-    console.error("syncShopLocaleAndCurrency error:", err);
+    appLogger.error({ err, shopDomain }, "Failed to sync Shopify shop locale and currency");
     return defaults;
   }
 }

@@ -181,7 +181,7 @@ describe("action /api/portal/otp/send", () => {
     expect(res.status).toBe(200);
   });
 
-  it("skips email when lookup value is a phone (non-@)", async () => {
+  it("fails closed when lookup value is a phone (non-@)", async () => {
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "s-1",
       shopId: "shop-1",
@@ -195,7 +195,10 @@ describe("action /api/portal/otp/send", () => {
       params: {},
       context: {},
     } as never);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.phoneVerificationUnavailable).toBe(true);
+    expect(prismaMock.lookupSession.update).not.toHaveBeenCalled();
     expect(sendOtpEmailMock).not.toHaveBeenCalled();
   });
 

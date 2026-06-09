@@ -11,11 +11,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, checkRateLimitMock, extractJourneyMock } = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
-  extractJourneyMock: vi.fn(() => [{ status: "return_initiated", at: "2025-01-01" }]),
-}));
+const { prismaMock, checkRateLimitMock, extractJourneyMock, verifyPortalSessionMock } = vi.hoisted(
+  () => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
+    extractJourneyMock: vi.fn(() => [{ status: "return_initiated", at: "2025-01-01" }]),
+    verifyPortalSessionMock: vi.fn(),
+  }),
+);
 
 Object.assign(prismaMock, createPrismaMock());
 
@@ -38,16 +41,24 @@ vi.mock("../../lib/rate-limit.server", () => ({
 vi.mock("../../lib/fynd-payload.server", () => ({
   extractFyndJourney: extractJourneyMock,
 }));
+vi.mock("../../lib/portal-auth.server", () => ({
+  verifyPortalSession: verifyPortalSessionMock,
+}));
 
 import { loader } from "../api.portal.track";
 
 function mkRequest(qs: string, method = "GET") {
-  return new Request(`https://app.example/api/portal/track?${qs}`, { method });
+  const sep = qs ? "&" : "";
+  return new Request(
+    `https://app.example/api/portal/track?${qs}${sep}portalToken=t&sessionId=sess-1`,
+    { method },
+  );
 }
 
 function baseReturnCase(overrides: Record<string, unknown> = {}) {
   const now = new Date("2026-02-15T12:00:00Z");
   return {
+    id: "rc-1",
     returnRequestNo: "R-100",
     customerEmailNorm: "buyer@example.com",
     customerPhoneNorm: null,
@@ -72,6 +83,14 @@ beforeEach(() => {
   extractJourneyMock
     .mockReset()
     .mockReturnValue([{ status: "return_initiated", at: "2026-02-15" }]);
+  verifyPortalSessionMock.mockReset().mockResolvedValue({
+    id: "sess-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "buyer@example.com",
+    matchedReturnIds: JSON.stringify(["rc-1"]),
+  });
 });
 
 describe("api.portal.track — coverage extras", () => {
@@ -280,8 +299,16 @@ describe("api.portal.track — coverage extras", () => {
   });
 
   describe("identity verification edge cases", () => {
-    it("rejects when stored customerEmailNorm is null even with matching email param", async () => {
+    it("rejects when the verified session does not own the return", async () => {
       prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
+      verifyPortalSessionMock.mockResolvedValueOnce({
+        id: "sess-1",
+        shopId: "shop-1",
+        lookupType: "email",
+        lookupValueHash: "hash",
+        lookupValueNorm: "buyer@example.com",
+        matchedReturnIds: JSON.stringify(["other-return"]),
+      });
       prismaMock.returnCase.findFirst.mockResolvedValueOnce(
         baseReturnCase({
           customerEmailNorm: null,

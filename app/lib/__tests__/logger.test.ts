@@ -109,6 +109,8 @@ describe("named module loggers", () => {
     expect(mod.notifLogger).toBeDefined();
     expect(mod.prismaLogger).toBeDefined();
     expect(mod.securityLogger).toBeDefined();
+    expect(mod.cronLogger).toBeDefined();
+    expect(mod.externalApiLogger).toBeDefined();
     expect(mod.appLogger).toBeDefined();
   });
 

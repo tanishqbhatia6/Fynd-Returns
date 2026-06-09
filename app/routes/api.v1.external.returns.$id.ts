@@ -7,6 +7,7 @@ import {
   checkPerKeyRateLimit,
 } from "../lib/external-api-helpers.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
+import { externalApiLogger } from "../lib/observability/logger.server";
 import prisma from "../db.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -43,7 +44,16 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       ),
     );
   } catch (err) {
-    console.error("[external.returns.detail]", err);
+    externalApiLogger.error(
+      {
+        endpoint: "external.returns.detail",
+        shopId: auth.shopId,
+        keyId: auth.keyId,
+        returnId: id,
+        err,
+      },
+      "External return detail failed",
+    );
     return apiError(500, "INTERNAL_ERROR", "Failed to fetch return details");
   }
 };

@@ -23,6 +23,7 @@ const {
   extractAffiliateOrderIdMock,
   normalizeSourceChannelMock,
   fetchSubscriptionSnapshotMock,
+  webhookLoggerMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateWebhookMock: vi.fn(),
@@ -31,6 +32,7 @@ const {
   extractAffiliateOrderIdMock: vi.fn(),
   normalizeSourceChannelMock: vi.fn<(...args: unknown[]) => string | null>(() => null),
   fetchSubscriptionSnapshotMock: vi.fn(),
+  webhookLoggerMock: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -47,6 +49,9 @@ vi.mock("../../lib/source-channel.server", () => ({
 }));
 vi.mock("../../lib/billing.server", () => ({
   fetchSubscriptionSnapshot: fetchSubscriptionSnapshotMock,
+}));
+vi.mock("../../lib/observability/logger.server", () => ({
+  webhookLogger: webhookLoggerMock,
 }));
 
 // Import all handlers AFTER mocks are registered.
@@ -72,6 +77,10 @@ beforeEach(() => {
   extractAffiliateOrderIdMock.mockReset();
   normalizeSourceChannelMock.mockReset().mockReturnValue(null);
   fetchSubscriptionSnapshotMock.mockReset();
+  webhookLoggerMock.error.mockClear();
+  webhookLoggerMock.warn.mockClear();
+  webhookLoggerMock.info.mockClear();
+  webhookLoggerMock.debug.mockClear();
   shopifyModuleMock.unauthenticated.admin.mockResolvedValue({
     admin: { graphql: graphqlMock },
   });
@@ -102,7 +111,14 @@ describe("webhooks.tsx — catch-all branch coverage", () => {
       context: {},
     } as never);
     expect(res.status).toBe(200);
-    expect(errorSpy).toHaveBeenCalledWith("[webhooks] customers/redact error:", expect.any(Error));
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "CUSTOMERS_REDACT",
+        shop: "store.myshopify.com",
+        err: expect.objectContaining({ message: "redact db down" }),
+      }),
+      "Shopify customer redact webhook failed",
+    );
   });
 
   it("CUSTOMERS_DATA_REQUEST: try-block error is caught + logged", async () => {
@@ -118,9 +134,13 @@ describe("webhooks.tsx — catch-all branch coverage", () => {
       context: {},
     } as never);
     expect(res.status).toBe(200);
-    expect(errorSpy).toHaveBeenCalledWith(
-      "[webhooks] customers/data_request error:",
-      expect.any(Error),
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "CUSTOMERS_DATA_REQUEST",
+        shop: "store.myshopify.com",
+        err: expect.objectContaining({ message: "data req down" }),
+      }),
+      "Shopify customer data request webhook failed",
     );
   });
 });
@@ -207,9 +227,15 @@ describe("webhooks.orders.create — happy path branch coverage", () => {
     expect(prismaMock.fyndOrderMapping.upsert).toHaveBeenCalledTimes(1);
     const upsertArg = prismaMock.fyndOrderMapping.upsert.mock.calls[0]![0];
     expect(upsertArg.create.shopifyOrderId).toBe("gid://shopify/Order/9002");
-    expect(errorSpy).toHaveBeenCalledWith(
-      "[webhook:orders/create] metafield write failed",
-      expect.objectContaining({ fyndOrderId: "F-9002" }),
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "ORDERS_CREATE",
+        shop: "store.myshopify.com",
+        orderName: "#1235",
+        fyndOrderId: "F-9002",
+        err: expect.objectContaining({ message: "graphql 500" }),
+      }),
+      "Order create metafield write failed",
     );
   });
 
@@ -232,9 +258,13 @@ describe("webhooks.orders.create — happy path branch coverage", () => {
       context: {},
     } as never);
     expect(res.status).toBe(200);
-    expect(errorSpy).toHaveBeenCalledWith(
-      "[webhook:orders/create]",
-      expect.objectContaining({ error: "unique_violation" }),
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "ORDERS_CREATE",
+        shop: "store.myshopify.com",
+        err: expect.objectContaining({ message: "unique_violation" }),
+      }),
+      "Order create webhook failed",
     );
   });
 });
@@ -266,9 +296,13 @@ describe("webhooks.orders.fulfilled — branch coverage", () => {
       context: {},
     } as never);
     expect(res.status).toBe(200);
-    expect(errorSpy).toHaveBeenCalledWith(
-      "[webhook:orders/fulfilled]",
-      expect.objectContaining({ error: "raw-string-error", stack: undefined }),
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "ORDERS_FULFILLED",
+        shop: "store.myshopify.com",
+        err: "raw-string-error",
+      }),
+      "Order fulfilled webhook failed",
     );
   });
 
@@ -322,9 +356,14 @@ describe("webhooks.orders.updated — branch coverage", () => {
       context: {},
     } as never);
     expect(res.status).toBe(200);
-    expect(errorSpy).toHaveBeenCalledWith(
-      "[webhook:orders/updated] sourceChannel backfill failed",
-      expect.objectContaining({ error: "backfill failed" }),
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "ORDERS_UPDATED",
+        shop: "store.myshopify.com",
+        orderName: "4001",
+        err: expect.objectContaining({ message: "backfill failed" }),
+      }),
+      "Order updated source channel backfill failed",
     );
   });
 
@@ -351,9 +390,13 @@ describe("webhooks.orders.updated — branch coverage", () => {
       context: {},
     } as never);
     expect(res.status).toBe(200);
-    expect(errorSpy).toHaveBeenCalledWith(
-      "[webhook:orders/updated]",
-      expect.objectContaining({ error: "non-error-thrown", stack: undefined }),
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "ORDERS_UPDATED",
+        shop: "store.myshopify.com",
+        err: "non-error-thrown",
+      }),
+      "Order updated webhook failed",
     );
   });
 });
@@ -372,9 +415,12 @@ describe("webhooks.app-subscriptions.update — non-Error branches", () => {
       context: {},
     } as never);
     expect(res.status).toBe(200);
-    expect(errorSpy).toHaveBeenCalledWith(
-      "[webhook:app-subscriptions/update] authenticate failed",
-      expect.objectContaining({ error: "auth-string-fail", stack: undefined }),
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "APP_SUBSCRIPTIONS_UPDATE",
+        err: "auth-string-fail",
+      }),
+      "App subscription update webhook authentication failed",
     );
   });
 
@@ -389,9 +435,13 @@ describe("webhooks.app-subscriptions.update — non-Error branches", () => {
       context: {},
     } as never);
     expect(res.status).toBe(200);
-    expect(errorSpy).toHaveBeenCalledWith(
-      "[webhook:app-subscriptions/update]",
-      expect.objectContaining({ error: "outer-string-fail", stack: undefined }),
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "APP_SUBSCRIPTIONS_UPDATE",
+        shop: "store.myshopify.com",
+        err: "outer-string-fail",
+      }),
+      "App subscription update failed",
     );
   });
 });

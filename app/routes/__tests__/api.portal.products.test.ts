@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, checkRateLimitMock } = vi.hoisted(() => ({
+const { prismaMock, checkRateLimitMock, verifyPortalSessionMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
+  verifyPortalSessionMock: vi.fn(),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -12,12 +13,22 @@ vi.mock("../../lib/rate-limit.server", () => ({
   checkRateLimit: checkRateLimitMock,
   rateLimitResponse: () => Response.json({ error: "rate" }, { status: 429 }),
 }));
+vi.mock("../../lib/portal-cors.server", () => ({
+  getPortalCorsHeaders: () => new Headers({ "Access-Control-Allow-Origin": "https://store.myshopify.com" }),
+  withCors: (res: Response) => res,
+}));
+vi.mock("../../lib/portal-auth.server", () => ({
+  verifyPortalSession: verifyPortalSessionMock,
+}));
 
 import { loader } from "../api.portal.products";
 
 const origFetch = globalThis.fetch;
 function mkReq(qs: string) {
-  return new Request(`https://app.example/api/portal/products?${qs}`);
+  const withAuth = qs
+    ? `${qs}&portalToken=portal-token&sessionId=lookup-session`
+    : "portalToken=portal-token&sessionId=lookup-session";
+  return new Request(`https://app.example/api/portal/products?${withAuth}`);
 }
 
 beforeEach(() => {
@@ -25,6 +36,14 @@ beforeEach(() => {
   checkRateLimitMock
     .mockReset()
     .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  verifyPortalSessionMock.mockReset().mockResolvedValue({
+    id: "lookup-session",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "customer@example.com",
+    matchedReturnIds: null,
+  });
   globalThis.fetch = vi.fn();
 });
 
@@ -39,6 +58,17 @@ const shopWithExchange = {
 };
 
 describe("guards", () => {
+  it("204 on OPTIONS preflight", async () => {
+    const res = await loader({
+      request: new Request("https://app.example/api/portal/products?shop=store", {
+        method: "OPTIONS",
+      }),
+      params: {},
+      context: {},
+    } as never);
+    expect(res.status).toBe(204);
+  });
+
   it("429 when rate-limited", async () => {
     checkRateLimitMock.mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
     const res = await loader({ request: mkReq("shop=x"), params: {}, context: {} } as never);
@@ -46,8 +76,25 @@ describe("guards", () => {
   });
 
   it("400 when shop missing", async () => {
-    const res = await loader({ request: mkReq(""), params: {}, context: {} } as never);
+    const res = await loader({
+      request: new Request("https://app.example/api/portal/products"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
+  });
+
+  it("401 when verified customer session is missing", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithExchange);
+    verifyPortalSessionMock.mockResolvedValueOnce(null);
+    const res = await loader({
+      request: new Request("https://app.example/api/portal/products?shop=store"),
+      params: {},
+      context: {},
+    } as never);
+    expect(res.status).toBe(401);
+    expect(prismaMock.session.findFirst).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it("403 when exchange not enabled", async () => {

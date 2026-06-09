@@ -97,8 +97,8 @@ describe("getPortalCorsHeaders / withCors — gap branches", () => {
     expect(headers.get("Access-Control-Allow-Origin")).toBeNull();
   });
 
-  it("allows *.myshopify.com origin", () => {
-    const req = new Request("https://app.example.com/x", {
+  it("allows the exact shop origin from the shop query param", () => {
+    const req = new Request("https://app.example.com/x?shop=demo-store.myshopify.com", {
       headers: { Origin: "https://demo-store.myshopify.com" },
     });
     const headers = getPortalCorsHeaders(req);
@@ -106,12 +106,12 @@ describe("getPortalCorsHeaders / withCors — gap branches", () => {
     expect(headers.get("Vary")).toBe("Origin");
   });
 
-  it("allows *.shopify.com origin", () => {
+  it("rejects broad Shopify admin origins without explicit allowlist", () => {
     const req = new Request("https://app.example.com/x", {
       headers: { Origin: "https://admin.shopify.com" },
     });
     const headers = getPortalCorsHeaders(req);
-    expect(headers.get("Access-Control-Allow-Origin")).toBe("https://admin.shopify.com");
+    expect(headers.get("Access-Control-Allow-Origin")).toBeNull();
   });
 
   it("rejects unrelated origins entirely", () => {
@@ -150,7 +150,7 @@ describe("getPortalCorsHeaders / withCors — gap branches", () => {
   });
 
   it("withCors merges CORS headers into a fresh Response, preserving status/body", async () => {
-    const req = new Request("https://app.example.com/x", {
+    const req = new Request("https://app.example.com/x?shop=shop.myshopify.com", {
       headers: { Origin: "https://shop.myshopify.com" },
     });
     const original = new Response("ok-body", {
@@ -230,10 +230,11 @@ describe("portal-auth.server.ts — secret resolution IIFE", () => {
     vi.restoreAllMocks();
   });
 
-  it("uses dev fallback + console.warn when PORTAL_JWT_SECRET is unset (non-production)", async () => {
+  it("uses dev fallback + structured warn when PORTAL_JWT_SECRET is unset (non-production)", async () => {
     delete process.env.PORTAL_JWT_SECRET;
     process.env.NODE_ENV = "development";
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const securityLogger = { warn: vi.fn() };
+    vi.doMock("../observability/logger.server", () => ({ securityLogger }));
     vi.resetModules();
     const mod = await import("../portal-auth.server");
     // The module loaded — the IIFE returned the dev fallback. Confirm by
@@ -243,19 +244,22 @@ describe("portal-auth.server.ts — secret resolution IIFE", () => {
     const decoded = mod.verifyPortalToken(token);
     expect(decoded).not.toBeNull();
     expect((decoded as Record<string, unknown>).shop).toBe("x.myshopify.com");
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0]![0]).toContain("PORTAL_JWT_SECRET not set or too short");
+    expect(securityLogger.warn).toHaveBeenCalledTimes(1);
+    expect(securityLogger.warn.mock.calls[0]![0]).toContain(
+      "PORTAL_JWT_SECRET not set or too short",
+    );
   });
 
-  it("uses dev fallback + console.warn when PORTAL_JWT_SECRET is too short (non-production)", async () => {
+  it("uses dev fallback + structured warn when PORTAL_JWT_SECRET is too short (non-production)", async () => {
     process.env.PORTAL_JWT_SECRET = "tooshort"; // <32 chars
     process.env.NODE_ENV = "development";
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const securityLogger = { warn: vi.fn() };
+    vi.doMock("../observability/logger.server", () => ({ securityLogger }));
     vi.resetModules();
     const mod = await import("../portal-auth.server");
     const token = mod.createPortalToken({ ok: true });
     expect(mod.verifyPortalToken(token)).not.toBeNull();
-    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(securityLogger.warn).toHaveBeenCalledOnce();
   });
 
   it("throws on module load when PORTAL_JWT_SECRET is unset and NODE_ENV=production", async () => {
@@ -277,12 +281,13 @@ describe("portal-auth.server.ts — secret resolution IIFE", () => {
   it("uses the env-supplied secret when it is >= 32 chars (happy path, no warn, no throw)", async () => {
     process.env.PORTAL_JWT_SECRET = "z".repeat(64);
     process.env.NODE_ENV = "development";
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const securityLogger = { warn: vi.fn() };
+    vi.doMock("../observability/logger.server", () => ({ securityLogger }));
     vi.resetModules();
     const mod = await import("../portal-auth.server");
     const token = mod.createPortalToken({ a: 1 });
     const decoded = mod.verifyPortalToken(token);
     expect((decoded as Record<string, unknown>).a).toBe(1);
-    expect(warnSpy).not.toHaveBeenCalled();
+    expect(securityLogger.warn).not.toHaveBeenCalled();
   });
 });

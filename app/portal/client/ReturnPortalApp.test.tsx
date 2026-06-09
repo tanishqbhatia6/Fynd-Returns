@@ -44,6 +44,15 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
   );
 }
 
+function portalPath(input: RequestInfo | URL) {
+  return new URL(String(input)).pathname;
+}
+
+function seedVerifiedPortalSession() {
+  window.__RPM_AUTH_TOKEN__ = "portal_token";
+  window.__RPM_AUTH_SESSION_ID__ = "sess_verified";
+}
+
 describe("ReturnPortalApp", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -86,15 +95,15 @@ describe("ReturnPortalApp", () => {
 
   it("completes an OTP-gated lookup and renders returns", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
+      const path = portalPath(input);
       const body = init?.body ? JSON.parse(String(init.body)) : {};
-      if (url.endsWith("/api/portal/lookup") && !body.portalToken) {
+      if (path.endsWith("/api/portal/lookup") && !body.portalToken) {
         return jsonResponse({ requiresOtp: true, sessionId: "sess_1" });
       }
-      if (url.endsWith("/api/portal/otp/verify")) {
+      if (path.endsWith("/api/portal/otp/verify")) {
         return jsonResponse({ portalToken: "portal_token" });
       }
-      if (url.endsWith("/api/portal/lookup") && body.portalToken) {
+      if (path.endsWith("/api/portal/lookup") && body.portalToken) {
         return jsonResponse({
           returns: [
             {
@@ -132,9 +141,10 @@ describe("ReturnPortalApp", () => {
   });
 
   it("shows the latest return journey status over stale Fynd current status", async () => {
+    seedVerifiedPortalSession();
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const url = String(input);
-      if (url.endsWith("/api/portal/lookup")) {
+      const path = portalPath(input);
+      if (path.endsWith("/api/portal/lookup")) {
         return jsonResponse({
           returns: [
             {
@@ -171,10 +181,11 @@ describe("ReturnPortalApp", () => {
   });
 
   it("submits selected items through the create-return API", async () => {
+    seedVerifiedPortalSession();
     const createPayloads: Record<string, unknown>[] = [];
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes("/api/portal/order?")) {
+      const path = portalPath(input);
+      if (path.endsWith("/api/portal/order")) {
         return jsonResponse({
           order: {
             id: "gid://shopify/Order/1",
@@ -203,7 +214,7 @@ describe("ReturnPortalApp", () => {
           portalCsrfToken: "csrf_order",
         });
       }
-      if (url.endsWith("/api/portal/create-return")) {
+      if (path.endsWith("/api/portal/create-return")) {
         createPayloads.push(JSON.parse(String(init?.body || "{}")) as Record<string, unknown>);
         return jsonResponse({
           success: true,
@@ -237,6 +248,8 @@ describe("ReturnPortalApp", () => {
     expect(screen.getByText(/SKU SHIRT-1/i)).toBeTruthy();
     expect(screen.getByText(/\$50/i)).toBeTruthy();
     const createPayload = createPayloads[0];
+    expect(createPayload?.portalToken).toBe("portal_token");
+    expect(createPayload?.sessionId).toBe("sess_verified");
     expect(createPayload?.portalCsrfToken).toBe("csrf_order");
     expect(createPayload?.shopifyOrderName).toBe("#1001");
     expect(createPayload?.items).toEqual([
@@ -245,6 +258,7 @@ describe("ReturnPortalApp", () => {
   });
 
   it("clubs duplicate Fynd shipment bags into one selectable line item", async () => {
+    seedVerifiedPortalSession();
     const createPayloads: Record<string, unknown>[] = [];
     const shipments = [
       {
@@ -268,8 +282,8 @@ describe("ReturnPortalApp", () => {
       },
     ];
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes("/api/portal/order?")) {
+      const path = portalPath(input);
+      if (path.endsWith("/api/portal/order")) {
         return jsonResponse({
           order: {
             id: "gid://shopify/Order/14425",
@@ -304,7 +318,7 @@ describe("ReturnPortalApp", () => {
           portalCsrfToken: "csrf_order",
         });
       }
-      if (url.endsWith("/api/portal/create-return")) {
+      if (path.endsWith("/api/portal/create-return")) {
         createPayloads.push(JSON.parse(String(init?.body || "{}")) as Record<string, unknown>);
         return jsonResponse({
           success: true,
@@ -359,6 +373,7 @@ describe("ReturnPortalApp", () => {
   });
 
   it("clubs identical Fynd rows even when each row has a different line id", async () => {
+    seedVerifiedPortalSession();
     const createPayloads: Record<string, unknown>[] = [];
     const shipments = [
       {
@@ -382,8 +397,8 @@ describe("ReturnPortalApp", () => {
       },
     ];
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes("/api/portal/order?")) {
+      const path = portalPath(input);
+      if (path.endsWith("/api/portal/order")) {
         return jsonResponse({
           order: {
             id: "FYNDSHOPIFYX14425",
@@ -414,7 +429,7 @@ describe("ReturnPortalApp", () => {
           portalCsrfToken: "csrf_order",
         });
       }
-      if (url.endsWith("/api/portal/create-return")) {
+      if (path.endsWith("/api/portal/create-return")) {
         createPayloads.push(JSON.parse(String(init?.body || "{}")) as Record<string, unknown>);
         return jsonResponse({
           success: true,

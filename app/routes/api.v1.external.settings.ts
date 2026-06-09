@@ -7,6 +7,7 @@ import {
   checkPerKeyRateLimit,
 } from "../lib/external-api-helpers.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
+import { externalApiLogger } from "../lib/observability/logger.server";
 import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -31,7 +32,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     return apiSuccess(sanitizeSettings(settings as unknown as Record<string, unknown>));
   } catch (err) {
-    console.error("[external.settings]", err);
+    externalApiLogger.error(
+      { endpoint: "external.settings", shopId: auth.shopId, keyId: auth.keyId, err },
+      "External settings fetch failed",
+    );
     return apiError(500, "INTERNAL_ERROR", "Failed to fetch settings");
   }
 };

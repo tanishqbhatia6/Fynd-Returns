@@ -16,6 +16,7 @@ import {
 } from "../lib/dashboard-date-utils";
 import { getStatusColor } from "../lib/status-colors";
 import { AppPage } from "../components/AppPage";
+import { appLogger } from "../lib/observability/logger.server";
 import {
   AreaChart,
   Area,
@@ -365,7 +366,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ]);
       fraudAlertCount = highRiskCount + criticalRiskCount;
     } catch (err) {
-      console.warn("[reports] Fraud risk query failed (columns may not exist yet):", err);
+      appLogger.warn(
+        { err, shopDomain: session.shop, shopId: shop.id },
+        "Reports fraud risk query failed",
+      );
     }
 
     const prevPeriodStart = new Date(rangeStart);
@@ -540,7 +544,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       avgTimeToRefundDays,
     };
   } catch (err) {
-    console.error("Reports loader error:", err);
+    appLogger.error({ err, shopDomain: session.shop }, "Reports loader failed");
     return {
       totalReturns: 0,
       statusMap: {} as Record<string, number>,

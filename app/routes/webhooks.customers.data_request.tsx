@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { webhookLogger } from "../lib/observability/logger.server";
 
 /**
  * GDPR: customers/data_request
@@ -16,12 +17,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     authed = await authenticate.webhook(request);
   } catch (err) {
     if (err instanceof Response) throw err;
-    console.error("[webhook:customers/data_request] authenticate failed", {
-      /* v8 ignore start */
-      // defensive: authenticate.webhook err is always Error; non-Error branch unreachable
-      error: err instanceof Error ? err.message : String(err),
-      /* v8 ignore stop */
-    });
+    webhookLogger.error(
+      { topic: "CUSTOMERS_DATA_REQUEST", err },
+      "Customer data request webhook authentication failed",
+    );
     return new Response();
   }
   const { shop, payload } = authed;
@@ -29,9 +28,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const customerId = payload.customer?.id?.toString() ?? "";
   const customerEmail = payload.customer?.email?.toLowerCase().trim() ?? "";
 
-  // Don't log raw email — pino redaction doesn't apply to console.log.
-  console.log(
-    `[webhooks.customers.data_request] shop=${shop} customerId=${customerId} email=${customerEmail ? "[present]" : "[missing]"}`,
+  webhookLogger.info(
+    {
+      topic: "CUSTOMERS_DATA_REQUEST",
+      shop,
+      hasCustomerId: Boolean(customerId),
+      hasCustomerEmail: Boolean(customerEmail),
+    },
+    "Shopify customer data request webhook received",
   );
 
   try {
@@ -40,7 +44,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     if (!shopRecord) {
-      console.log(`[webhooks.customers.data_request] Shop not found: ${shop}`);
+      webhookLogger.info(
+        { topic: "CUSTOMERS_DATA_REQUEST", shop },
+        "Shop not found for customer data request",
+      );
       return new Response();
     }
 
@@ -63,11 +70,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           })
         : [];
 
-    console.log(
-      `[webhooks.customers.data_request] Found ${returnCases.length} return case(s) for customer in shop=${shop}`,
+    webhookLogger.info(
+      { topic: "CUSTOMERS_DATA_REQUEST", shop, returnCaseCount: returnCases.length },
+      "Shopify customer data request lookup completed",
     );
   } catch (err) {
-    console.error("[webhooks.customers.data_request] Error processing request:", err);
+    webhookLogger.error(
+      { topic: "CUSTOMERS_DATA_REQUEST", shop, err },
+      "Customer data request webhook failed",
+    );
   }
 
   return new Response();

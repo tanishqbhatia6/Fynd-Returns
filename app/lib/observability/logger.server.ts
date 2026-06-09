@@ -40,6 +40,9 @@ const REDACT_PATHS = [
   "applicationToken",
   "fyndCredentials",
   "portalToken",
+  "authorization",
+  "cookie",
+  "x-api-key",
   "*.password",
   "*.secret",
   "*.token",
@@ -55,6 +58,9 @@ const REDACT_PATHS = [
   "*.portalToken",
   "*.whatsappApiKey",
   "*.gorgiasApiKey",
+  "*.authorization",
+  "*.cookie",
+  "*.x-api-key",
   // Customer PII (P3 finding from QA audit) — log lines previously included raw
   // customer email/phone/name in error contexts. Redacted by default; if the
   // ops team needs PII for debugging, raise log level on a specific span.
@@ -63,17 +69,65 @@ const REDACT_PATHS = [
   "customerPhone",
   "customerPhoneNorm",
   "customerName",
+  "customerAddress",
+  "customerAddress1",
+  "customerAddress2",
+  "customerCity",
+  "customerProvince",
+  "customerZip",
+  "shippingAddress",
+  "billingAddress",
+  "deliveryAddress",
+  "pickupAddress",
+  "address",
+  "address1",
+  "address2",
+  "postalCode",
+  "zip",
   "email",
   "phone",
+  "firstName",
+  "lastName",
   "*.customerEmail",
   "*.customerEmailNorm",
   "*.customerPhone",
   "*.customerPhoneNorm",
   "*.customerName",
+  "*.customerAddress",
+  "*.customerAddress1",
+  "*.customerAddress2",
+  "*.customerCity",
+  "*.customerProvince",
+  "*.customerZip",
+  "*.shippingAddress",
+  "*.billingAddress",
+  "*.deliveryAddress",
+  "*.pickupAddress",
+  "*.address",
+  "*.address1",
+  "*.address2",
+  "*.postalCode",
+  "*.zip",
+  "*.email",
+  "*.phone",
+  "*.firstName",
+  "*.lastName",
+  // Raw payloads frequently contain credentials or customer PII from Shopify/Fynd.
+  "rawPayload",
+  "rawBody",
+  "rawJson",
+  "fyndPayloadJson",
+  "*.rawPayload",
+  "*.rawBody",
+  "*.rawJson",
+  "*.fyndPayloadJson",
   // HTTP headers / cookies
   "req.headers.authorization",
   'req.headers["x-api-key"]',
   "req.headers.cookie",
+  "headers.authorization",
+  'headers["x-api-key"]',
+  "headers.cookie",
 ];
 
 // ---------------------------------------------------------------------------
@@ -190,6 +244,15 @@ export const prismaLogger = createModuleLogger("prisma");
 
 /** Security/auth logger */
 export const securityLogger = createModuleLogger("security");
+
+/** Cron/scheduled job logger */
+export const cronLogger = createModuleLogger("cron");
+
+/** Public external API logger */
+export const externalApiLogger = createModuleLogger("external_api");
+
+/** Redis/cache logger */
+export const redisLogger = createModuleLogger("redis");
 
 /** General app logger */
 export const appLogger = createModuleLogger("app");

@@ -33,8 +33,16 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Production preflight (repo contract)
+        run: npm run preflight:production -- --skip-env --skip-network
+
       - name: Install Railway CLI
         run: npm install -g @railway/cli
+
+      - name: Production preflight (Railway environment)
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway run npm run preflight:production -- --skip-network
 
       - name: Deploy to Railway
         env:

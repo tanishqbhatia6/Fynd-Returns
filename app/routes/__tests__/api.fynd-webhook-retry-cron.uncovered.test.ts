@@ -193,6 +193,18 @@ describe("isAuthorized localhost branch (line 31)", () => {
     expect(res.status).toBe(401);
   });
 
+  it("rejects spoofed localhost hostnames when CRON_SECRET is unset", async () => {
+    delete process.env.CRON_SECRET;
+
+    const res = await action({
+      request: mkReq({ method: "POST", host: "127.0.0.1.example.com" }),
+      params: {},
+      context: {},
+    } as never);
+
+    expect(res.status).toBe(401);
+  });
+
   it("rejects when CRON_SECRET is unset and no host header is present", async () => {
     delete process.env.CRON_SECRET;
 

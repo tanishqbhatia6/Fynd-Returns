@@ -672,7 +672,7 @@ const CHAPTERS: Chapter[] = [
             </>,
             <>
               <strong>Multi-channel ready.</strong> Works with orders from Shopify, Fynd OMS, or
-              manually-submitted orders with email/phone OTP verification.
+              manually-submitted orders with email OTP verification.
             </>,
             <>
               <strong>Merchant timezone &amp; locale aware.</strong> All date ranges, dashboards,
@@ -728,9 +728,8 @@ const CHAPTERS: Chapter[] = [
         <div style={h3}>How it works — the big picture</div>
         <Step n={1}>
           <strong>Customer visits your portal</strong> — They go to your store's{" "}
-          <code style={code}>/apps/returns</code> page, look up their order by order number (or
-          email/phone + OTP for manual submissions), and submit a return request with reasons,
-          quantities, and optional photos.
+          <code style={code}>/apps/returns</code> page, look up their order, verify via OTP, and
+          submit a return request with reasons, quantities, and optional photos.
         </Step>
         <Step n={2}>
           <strong>Your admin reviews the request</strong> — The return appears in{" "}
@@ -1057,12 +1056,12 @@ const CHAPTERS: Chapter[] = [
             {
               title: "Order-based lookup",
               description:
-                "Customers enter their order number to pull line items directly from Shopify.",
+                "Customers enter their order number, verify the order contact, then see eligible Shopify line items.",
             },
             {
               title: "OTP manual flow",
               description:
-                "No order number? Email or phone OTP lets verified customers still submit a return.",
+                "No order number? Email OTP lets verified customers still submit a return.",
             },
             {
               title: "Rich media uploads",
@@ -1098,30 +1097,34 @@ const CHAPTERS: Chapter[] = [
           <code style={code}>1001</code>) and click <strong>Find my order</strong>.
         </Step>
         <Step n={3}>
-          The app verifies the order via Shopify. If it's valid, <em>fulfilled</em>, and within the
-          return window, the line items are displayed with thumbnails, prices, and quantities.
+          The app verifies the order via Shopify and sends an OTP to the customer contact on that
+          order before showing line items.
         </Step>
         <Step n={4}>
+          After verification, eligible line items are displayed with thumbnails, prices, and
+          quantities.
+        </Step>
+        <Step n={5}>
           Customer <strong>selects items</strong> by checking the boxes. They can select multiple
           items and partial quantities.
         </Step>
-        <Step n={5}>
+        <Step n={6}>
           For each selected item, they choose a <strong>return reason</strong> and set the{" "}
           <strong>quantity</strong> (up to the purchased quantity).
         </Step>
-        <Step n={6}>
+        <Step n={7}>
           Optionally, they enter their <strong>email</strong> for status updates and add{" "}
           <strong>notes</strong>.
         </Step>
-        <Step n={7}>
+        <Step n={8}>
           If photo uploads are enabled, they can <strong>drag-drop or click to browse</strong>.
           Images up to 5 MB, videos up to 50 MB. Files are uploaded to secure storage and linked to
           the return item.
         </Step>
-        <Step n={8}>
+        <Step n={9}>
           They click <strong>Submit return request</strong>.
         </Step>
-        <Step n={9}>
+        <Step n={10}>
           A confirmation screen shows the <strong>Return Request ID</strong> (e.g.{" "}
           <code style={code}>RPM-A1B2C3D4</code>) with a <strong>Copy</strong> button. The customer
           should save this.
@@ -1141,10 +1144,10 @@ const CHAPTERS: Chapter[] = [
           Customer clicks <strong>Submit manually without order lookup</strong>.
         </Step>
         <Step n={2}>
-          They enter their <strong>email</strong> or <strong>phone</strong>.
+          They enter their <strong>email</strong>.
         </Step>
         <Step n={3}>
-          The app sends a <strong>6-digit OTP</strong> via email (SMTP) or SMS. OTPs are valid for
+          The app sends a <strong>6-digit OTP</strong> via email (SMTP). OTPs are valid for
           10 minutes.
         </Step>
         <Step n={4}>
@@ -1274,24 +1277,24 @@ const CHAPTERS: Chapter[] = [
             "Falls back to manual + OTP if the order isn't in Shopify.",
           ]}
           dont={[
-            "Doesn't require account login — order-based lookup is enough.",
+            "Doesn't require account login — verified order contact ownership is enough.",
             "Doesn't let the customer edit an already-submitted return (they'd need to contact support).",
             "Doesn't let blocklist or outside-window orders through, even if the URL is crafted.",
-            "Doesn't leak order data — lookups match on order-number + email/phone for shared-device safety.",
+            "Doesn't leak order data — lookups match on order-number + verified email for shared-device safety.",
           ]}
         />
 
         <div style={h3}>Frequently asked — from customers</div>
         <Faq q="Can customers create a return without an account?">
-          Yes. Order-based lookup uses the order number alone for authentication. The OTP path
-          verifies the email or phone before accepting a manual submission.
+          Yes. They do not need a store account, but the portal verifies customer ownership with an
+          OTP before showing order details or accepting a return.
         </Faq>
         <Faq q="What file types are accepted for photo uploads?">
           JPG, PNG, WebP, HEIC for images. MP4 and MOV for videos. Max size is 5 MB per image and 50
           MB per video. Files are uploaded to secure object storage and served via signed URLs.
         </Faq>
         <Faq q="Can a customer track multiple returns at once?">
-          Yes. Searching by email or phone returns every return tied to that contact. The list is
+          Yes. Searching by verified email returns every return tied to that contact. The list is
           grouped by order.
         </Faq>
         <Faq q="What happens if the return window has expired?">

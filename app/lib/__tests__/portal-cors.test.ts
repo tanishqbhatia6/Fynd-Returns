@@ -1,17 +1,37 @@
 /**
  * Tests for portal-cors.server.ts: portal API CORS allow-list. The portal runs
- * on the store domain (*.myshopify.com / *.shopify.com) and fetches from the
- * app domain, so the headers must echo back only trusted origins. Wildcard or
- * arbitrary origins must be rejected; preflights and missing-origin requests
- * must still get the standard method/header advertisement.
+ * on the exact store domain and fetches from the app domain, so the headers
+ * must echo only the shop origin derived from the request or an explicit
+ * PORTAL_ALLOWED_ORIGINS entry. Wildcard or arbitrary origins must be rejected;
+ * preflights and missing-origin requests must still get the standard
+ * method/header advertisement.
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { getPortalCorsHeaders, withCors } from "../portal-cors.server";
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
+const ORIGINAL_PORTAL_ALLOWED_ORIGINS = process.env.PORTAL_ALLOWED_ORIGINS;
 
-function makeRequest(headers: Record<string, string> = {}, method = "GET"): Request {
-  return new Request("https://app.example.com/api/portal", { method, headers });
+function restoreEnv() {
+  process.env.NODE_ENV = ORIGINAL_NODE_ENV;
+  if (ORIGINAL_PORTAL_ALLOWED_ORIGINS === undefined) delete process.env.PORTAL_ALLOWED_ORIGINS;
+  else process.env.PORTAL_ALLOWED_ORIGINS = ORIGINAL_PORTAL_ALLOWED_ORIGINS;
+}
+
+function makeRequest(
+  headers: Record<string, string> = {},
+  method = "GET",
+  url = "https://app.example.com/api/portal",
+): Request {
+  return new Request(url, { method, headers });
+}
+
+function makeShopRequest(headers: Record<string, string> = {}, method = "GET"): Request {
+  return makeRequest(
+    headers,
+    method,
+    "https://app.example.com/api/portal?shop=my-store.myshopify.com",
+  );
 }
 
 describe("getPortalCorsHeaders — allowed origins", () => {
@@ -19,25 +39,31 @@ describe("getPortalCorsHeaders — allowed origins", () => {
     process.env.NODE_ENV = "production";
   });
   afterEach(() => {
-    process.env.NODE_ENV = ORIGINAL_NODE_ENV;
+    restoreEnv();
   });
 
-  it("echoes a *.myshopify.com origin", () => {
-    const headers = getPortalCorsHeaders(makeRequest({ Origin: "https://my-store.myshopify.com" }));
+  it("echoes the exact shop origin from the request shop", () => {
+    const headers = getPortalCorsHeaders(
+      makeShopRequest({ Origin: "https://my-store.myshopify.com" }),
+    );
     expect(headers.get("Access-Control-Allow-Origin")).toBe("https://my-store.myshopify.com");
     expect(headers.get("Vary")).toBe("Origin");
   });
 
-  it("echoes a *.shopify.com origin", () => {
-    const headers = getPortalCorsHeaders(makeRequest({ Origin: "https://admin.shopify.com" }));
-    expect(headers.get("Access-Control-Allow-Origin")).toBe("https://admin.shopify.com");
-    expect(headers.get("Vary")).toBe("Origin");
+  it("echoes an explicitly configured allowed origin", () => {
+    process.env.PORTAL_ALLOWED_ORIGINS = "https://portal.example.com";
+    const headers = getPortalCorsHeaders(makeRequest({ Origin: "https://portal.example.com" }));
+    expect(headers.get("Access-Control-Allow-Origin")).toBe("https://portal.example.com");
   });
 
   it("always advertises methods, allowed headers, and max-age", () => {
-    const headers = getPortalCorsHeaders(makeRequest({ Origin: "https://store.myshopify.com" }));
+    const headers = getPortalCorsHeaders(
+      makeShopRequest({ Origin: "https://my-store.myshopify.com" }),
+    );
     expect(headers.get("Access-Control-Allow-Methods")).toBe("GET, POST, OPTIONS");
-    expect(headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, Authorization");
+    expect(headers.get("Access-Control-Allow-Headers")).toBe(
+      "Content-Type, Authorization, X-Portal-Token",
+    );
     expect(headers.get("Access-Control-Max-Age")).toBe("86400");
   });
 });
@@ -47,7 +73,7 @@ describe("getPortalCorsHeaders — rejected origins", () => {
     process.env.NODE_ENV = "production";
   });
   afterEach(() => {
-    process.env.NODE_ENV = ORIGINAL_NODE_ENV;
+    restoreEnv();
   });
 
   it("never echoes a wildcard '*' origin", () => {
@@ -61,6 +87,20 @@ describe("getPortalCorsHeaders — rejected origins", () => {
     const headers = getPortalCorsHeaders(makeRequest({ Origin: "https://evil.example.com" }));
     expect(headers.get("Access-Control-Allow-Origin")).toBeNull();
     expect(headers.get("Vary")).toBeNull();
+  });
+
+  it("rejects a Shopify-looking origin when the request has no matching shop", () => {
+    const headers = getPortalCorsHeaders(
+      makeRequest({ Origin: "https://my-store.myshopify.com" }),
+    );
+    expect(headers.get("Access-Control-Allow-Origin")).toBeNull();
+  });
+
+  it("rejects a different shop origin than the request shop", () => {
+    const headers = getPortalCorsHeaders(
+      makeShopRequest({ Origin: "https://other-store.myshopify.com" }),
+    );
+    expect(headers.get("Access-Control-Allow-Origin")).toBeNull();
   });
 
   it("rejects spoofed substring origins (myshopify.com.evil.com)", () => {
@@ -93,7 +133,9 @@ describe("getPortalCorsHeaders — missing origin", () => {
     expect(headers.get("Vary")).toBeNull();
     // Methods/headers/max-age are still set.
     expect(headers.get("Access-Control-Allow-Methods")).toBe("GET, POST, OPTIONS");
-    expect(headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, Authorization");
+    expect(headers.get("Access-Control-Allow-Headers")).toBe(
+      "Content-Type, Authorization, X-Portal-Token",
+    );
   });
 
   it("does not echo an empty-string Origin", () => {
@@ -107,7 +149,7 @@ describe("getPortalCorsHeaders — dev origins", () => {
     process.env.NODE_ENV = "development";
   });
   afterEach(() => {
-    process.env.NODE_ENV = ORIGINAL_NODE_ENV;
+    restoreEnv();
   });
 
   it("allows http://localhost:PORT in non-production", () => {
@@ -127,16 +169,18 @@ describe("getPortalCorsHeaders — OPTIONS preflight", () => {
     process.env.NODE_ENV = "production";
   });
   afterEach(() => {
-    process.env.NODE_ENV = ORIGINAL_NODE_ENV;
+    restoreEnv();
   });
 
   it("returns the same headers for an OPTIONS preflight as for GET", () => {
     const headers = getPortalCorsHeaders(
-      makeRequest({ Origin: "https://store.myshopify.com" }, "OPTIONS"),
+      makeShopRequest({ Origin: "https://my-store.myshopify.com" }, "OPTIONS"),
     );
-    expect(headers.get("Access-Control-Allow-Origin")).toBe("https://store.myshopify.com");
+    expect(headers.get("Access-Control-Allow-Origin")).toBe("https://my-store.myshopify.com");
     expect(headers.get("Access-Control-Allow-Methods")).toBe("GET, POST, OPTIONS");
-    expect(headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, Authorization");
+    expect(headers.get("Access-Control-Allow-Headers")).toBe(
+      "Content-Type, Authorization, X-Portal-Token",
+    );
     expect(headers.get("Access-Control-Max-Age")).toBe("86400");
   });
 
@@ -155,25 +199,43 @@ describe("withCors", () => {
     process.env.NODE_ENV = "production";
   });
   afterEach(() => {
-    process.env.NODE_ENV = ORIGINAL_NODE_ENV;
+    restoreEnv();
   });
 
   it("preserves status, statusText, and body of the wrapped response", async () => {
     const original = new Response("hello", { status: 201, statusText: "Created" });
-    const wrapped = withCors(original, makeRequest({ Origin: "https://s.myshopify.com" }));
+    const wrapped = withCors(
+      original,
+      makeShopRequest({ Origin: "https://my-store.myshopify.com" }),
+    );
     expect(wrapped.status).toBe(201);
     expect(wrapped.statusText).toBe("Created");
     expect(await wrapped.text()).toBe("hello");
   });
 
-  it("merges CORS headers onto the response for an allowed origin", () => {
+  it("does not set Allow-Origin for a Shopify-looking origin without shop context", () => {
     const original = new Response("{}", {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
     const wrapped = withCors(original, makeRequest({ Origin: "https://s.myshopify.com" }));
     expect(wrapped.headers.get("Content-Type")).toBe("application/json");
-    expect(wrapped.headers.get("Access-Control-Allow-Origin")).toBe("https://s.myshopify.com");
+    expect(wrapped.headers.get("Access-Control-Allow-Origin")).toBeNull();
+  });
+
+  it("merges CORS headers onto the response for the exact shop origin", () => {
+    const original = new Response("{}", {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+    const wrapped = withCors(
+      original,
+      makeShopRequest({ Origin: "https://my-store.myshopify.com" }),
+    );
+    expect(wrapped.headers.get("Content-Type")).toBe("application/json");
+    expect(wrapped.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://my-store.myshopify.com",
+    );
     expect(wrapped.headers.get("Access-Control-Allow-Methods")).toBe("GET, POST, OPTIONS");
     expect(wrapped.headers.get("Vary")).toBe("Origin");
   });

@@ -230,10 +230,10 @@ Used by: All `api.portal.*` routes.
 Customer → Storefront (App Proxy) → Portal SPA
                                         │
                                    1. POST /api/portal/lookup
-                                      (email/phone + order#)
+                                      (email + order#)
                                         │
                                    2. POST /api/portal/otp/send
-                                      (6-digit OTP via email/SMS)
+                                      (6-digit OTP via email)
                                         │
                                    3. POST /api/portal/otp/verify
                                       (OTP verification → JWT issued)
@@ -243,9 +243,9 @@ Customer → Storefront (App Proxy) → Portal SPA
 ```
 
 - JWT tokens are signed with `PORTAL_JWT_SECRET` and expire after 1 hour.
-- OTP is a 6-digit numeric code, SHA-256 hashed before storage.
+- OTP is a 6-digit numeric code, bcrypt-hashed before storage.
 - Rate limited: 60-second cooldown between OTP sends, max 5 attempts per session.
-- In dev mode (`appMode === "dev"`), OTP verification can be bypassed.
+- Phone OTP starts fail closed until a real SMS/WhatsApp OTP delivery path is implemented and verified.
 
 ### 3. API Key (External API)
 
@@ -292,8 +292,8 @@ ReturnProMax is a multi-tenant application. Every data record is scoped to a spe
 
 1. Customer visits the storefront return portal (served via Shopify App Proxy).
 2. Portal SPA loads and presents three tabs: Create Return, Track Return, Track Order.
-3. Customer enters order number and email/phone, triggering a lookup against Shopify orders.
-4. If OTP is enabled, a 6-digit code is sent via email or SMS. Customer verifies.
+3. Customer enters order number and email, triggering a lookup against Shopify orders.
+4. A 6-digit code is sent via email. Customer verifies before sensitive order or return data is returned.
 5. Portal displays eligible line items. Customer selects items, reasons, uploads photos.
 6. Portal submits the return request to `POST /api/portal/create-return`.
 7. Server creates a `ReturnCase` record with `ReturnItem` entries and a `ReturnEvent`.

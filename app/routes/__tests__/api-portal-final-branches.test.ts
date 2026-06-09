@@ -111,7 +111,18 @@ describe("api.portal.lookup — final branches", () => {
       parseFyndOrderDetailsForTab,
     }));
     vi.doMock("../../lib/portal-i18n", () => ({ getPortalLabels: vi.fn(() => ({})) }));
-    vi.doMock("../../lib/portal-auth.server", () => ({ createPortalCsrfToken: () => "csrf" }));
+    vi.doMock("../../lib/portal-auth.server", () => ({
+      createPortalCsrfToken: () => "csrf",
+      verifyPortalSession: vi.fn(async () => ({
+        id: "session-1",
+        shopId: "shop-1",
+        lookupType: "email",
+        lookupValueHash: "hash",
+        lookupValueNorm: "shopper@example.com",
+        matchedReturnIds: null,
+      })),
+      hashLookupValue: vi.fn(() => "hash"),
+    }));
 
     return (await import("../api.portal.lookup")).action;
   }
@@ -174,7 +185,7 @@ describe("api.portal.lookup — final branches", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.orders).toHaveLength(1);
-    expect(body.orders[0].email).toBe("x@x.com");
+    expect(body.orders[0]).not.toHaveProperty("email");
     expect(body.orders[0].currencyCode).toBe("USD");
     // Line items deduped by sku/itemId/title — falls back to "" key which dedupes to one entry
     expect(body.orders[0].lineItems.length).toBeGreaterThanOrEqual(1);
@@ -197,6 +208,7 @@ describe("api.portal.lookup — final branches", () => {
             {
               journey_type: "forward",
               external_order_id: "EXT-1",
+              customer_details: { email: "shopper@example.com" },
               delivery_address: {
                 city: "Mumbai",
                 state: "MH",
@@ -224,10 +236,7 @@ describe("api.portal.lookup — final branches", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     const o = body.orders[0];
-    expect(o.shippingAddress?.city).toBe("Mumbai");
-    expect(o.shippingAddress?.zip).toBe("400001");
-    expect(o.shippingAddress?.firstName).toBe("John");
-    expect(o.shippingAddress?.lastName).toBe("Doe");
+    expect(o).not.toHaveProperty("shippingAddress");
   });
 
   it("ReturnCase synthetic: prefers item.sku when notes is null", async () => {
@@ -330,7 +339,18 @@ describe("api.portal.order — final branches", () => {
     }));
     vi.doMock("../../lib/return-rules.server", () => ({ checkReturnEligibility }));
     vi.doMock("../../lib/fynd.server", () => ({ createFyndClientOrError }));
-    vi.doMock("../../lib/portal-auth.server", () => ({ createPortalCsrfToken: () => "csrf" }));
+    vi.doMock("../../lib/portal-auth.server", () => ({
+      createPortalCsrfToken: () => "csrf",
+      verifyPortalSession: vi.fn(async () => ({
+        id: "session-1",
+        shopId: "shop-1",
+        lookupType: "email",
+        lookupValueHash: "hash",
+        lookupValueNorm: "shopper@example.com",
+        matchedReturnIds: null,
+      })),
+      hashLookupValue: vi.fn(() => "hash"),
+    }));
     vi.doMock("../../lib/return-request-id", () => ({
       formatReturnRequestId: (x: string) => `R-${x}`,
     }));
@@ -362,6 +382,8 @@ describe("api.portal.order — final branches", () => {
             shipment_id: "S1",
             status: "delivery_done",
             affiliate_order_id: "ORD-1",
+            customer_details: { email: "shopper@example.com", phone: "+15550100" },
+            delivery_address: { email: "shopper@example.com", phone: "+15550100" },
             // bag with safeStr-extracted name from object (line 90 branch idx 5/6)
             bags: [
               {
@@ -387,6 +409,8 @@ describe("api.portal.order — final branches", () => {
             journey_type: "forward",
             shipment_id: "S2",
             status: "out_for_delivery",
+            customer_details: { email: "shopper@example.com", phone: "+15550100" },
+            delivery_address: { email: "shopper@example.com", phone: "+15550100" },
             // bag with no articles/items — exercises the bag-level fallback path
             bags: [
               {
@@ -438,6 +462,8 @@ describe("api.portal.order — final branches", () => {
             shipment_id: "S1",
             status: "delivery_done",
             affiliate_order_id: "ORD-2",
+            customer_details: { email: "shopper@example.com", phone: "+15550100" },
+            delivery_address: { email: "shopper@example.com", phone: "+15550100" },
             bags: [
               {
                 bag_id: "B1",
@@ -484,6 +510,7 @@ describe("api.portal.order — final branches", () => {
       fetchOrderByOrderNumber.mockResolvedValue({
         id: "gid://shopify/Order/1",
         name: "#100",
+        email: "shopper@example.com",
         createdAt: new Date().toISOString(),
         displayFulfillmentStatus: "FULFILLED",
         displayFinancialStatus: "PAID",
@@ -509,6 +536,8 @@ describe("api.portal.order — final branches", () => {
             shipment_id: "S1",
             status: "delivery_done",
             id: undefined,
+            customer_details: { email: "shopper@example.com", phone: "+15550100" },
+            delivery_address: { email: "shopper@example.com", phone: "+15550100" },
             bags: [
               {
                 bag_id: "B1",
@@ -628,7 +657,18 @@ describe("api.portal.create-return — final branches", () => {
       checkRateLimit: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
       rateLimitResponse: () => Response.json({ error: "rate" }, { status: 429 }),
     }));
-    vi.doMock("../../lib/portal-auth.server", () => ({ verifyPortalCsrfToken: vi.fn(() => true) }));
+    vi.doMock("../../lib/portal-auth.server", () => ({
+      verifyPortalCsrfToken: vi.fn(() => true),
+      verifyPortalSession: vi.fn(async () => ({
+        id: "session-1",
+        shopId: "shop-1",
+        lookupType: "email",
+        lookupValueHash: "hash",
+        lookupValueNorm: "shopper@example.com",
+        matchedReturnIds: null,
+      })),
+      hashLookupValue: vi.fn(() => "hash"),
+    }));
     vi.doMock("../../lib/shopify-admin.server", () => ({
       fetchOrder,
       fetchOrderByOrderNumber: vi.fn(async () => null),
@@ -709,6 +749,7 @@ describe("api.portal.create-return — final branches", () => {
       // numeric orderId — "12345" matches /^\d+$/, so the affiliate-resolve block is skipped
       fetchOrder.mockResolvedValue({
         id: "12345",
+        email: "u@x.com",
         displayFulfillmentStatus: "FULFILLED",
         displayFinancialStatus: "PAID",
         sourceName: "web",
@@ -767,17 +808,30 @@ describe("api.portal.cancel-return — final branches", () => {
     setup: (m: {
       prisma: ReturnType<typeof createPrismaMock>;
       verifyPortalToken: ReturnType<typeof vi.fn>;
+      verifyPortalSession: ReturnType<typeof vi.fn>;
       verifyPortalCsrfToken: ReturnType<typeof vi.fn>;
     }) => void,
   ) {
     const prisma = createPrismaMock();
     const verifyPortalToken = vi.fn(() => ({ sessionId: "sess-1", shopId: "shop-1" }));
+    const verifyPortalSession = vi.fn(async () => ({
+      id: "sess-1",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: "hash",
+      lookupValueNorm: "user@example.com",
+      matchedReturnIds: JSON.stringify(["rc-1"]),
+    }));
     const verifyPortalCsrfToken = vi.fn(() => true);
 
-    setup({ prisma, verifyPortalToken, verifyPortalCsrfToken });
+    setup({ prisma, verifyPortalToken, verifyPortalSession, verifyPortalCsrfToken });
 
     vi.doMock("../../db.server", () => ({ default: prisma }));
-    vi.doMock("../../lib/portal-auth.server", () => ({ verifyPortalToken, verifyPortalCsrfToken }));
+    vi.doMock("../../lib/portal-auth.server", () => ({
+      verifyPortalToken,
+      verifyPortalSession,
+      verifyPortalCsrfToken,
+    }));
     vi.doMock("../../lib/portal-cors.server", () => ({
       getPortalCorsHeaders: () => new Headers(),
       withCors: (r: Response) => r,
@@ -798,9 +852,9 @@ describe("api.portal.cancel-return — final branches", () => {
   }
 
   it("non-Error thrown in outer try → 500 with 'Internal server error' fallback", async () => {
-    const action = await loadAction(({ prisma }) => {
-      // Throw a non-Error from prisma.lookupSession.findUnique
-      prisma.lookupSession.findUnique.mockImplementation(() => {
+    const action = await loadAction(({ verifyPortalSession }) => {
+      // Throw a non-Error from the verified-session helper.
+      verifyPortalSession.mockImplementation(() => {
         throw "raw-string";
       });
     });
@@ -819,11 +873,13 @@ describe("api.portal.cancel-return — final branches", () => {
   });
 
   it("matchedReturnIds is malformed JSON → catch swallows, returns 404 (empty array)", async () => {
-    const action = await loadAction(({ prisma }) => {
-      prisma.lookupSession.findUnique.mockResolvedValue({
+    const action = await loadAction(({ prisma, verifyPortalSession }) => {
+      verifyPortalSession.mockResolvedValue({
         id: "sess-1",
-        verifiedAt: new Date(),
-        expiresAt: new Date(Date.now() + 60_000),
+        shopId: "shop-1",
+        lookupType: "email",
+        lookupValueHash: "hash",
+        lookupValueNorm: "user@example.com",
         matchedReturnIds: "{not-json", // exercises the `catch { /* ignore */ }` branch
       });
       prisma.shop.findUnique.mockResolvedValue({
@@ -860,6 +916,7 @@ describe("api.portal.fynd-enrich — final branches", () => {
       prisma: ReturnType<typeof createPrismaMock>;
       searchShipments: ReturnType<typeof vi.fn>;
       createFyndClientOrError: ReturnType<typeof vi.fn>;
+      verifyPortalSession: ReturnType<typeof vi.fn>;
     }) => void,
   ) {
     const prisma = createPrismaMock();
@@ -868,10 +925,19 @@ describe("api.portal.fynd-enrich — final branches", () => {
       ok: true,
       client: { searchShipmentsByExternalOrderId: searchShipments },
     }));
+    const verifyPortalSession = vi.fn(async () => ({
+      id: "sess-1",
+      shopId: "shop-1",
+      lookupType: "order_no",
+      lookupValueHash: "hash",
+      lookupValueNorm: "100",
+      matchedReturnIds: JSON.stringify(["rc-1", "rc-2"]),
+    }));
 
-    setup({ prisma, searchShipments, createFyndClientOrError });
+    setup({ prisma, searchShipments, createFyndClientOrError, verifyPortalSession });
 
     vi.doMock("../../db.server", () => ({ default: prisma }));
+    vi.doMock("../../lib/portal-auth.server", () => ({ verifyPortalSession }));
     vi.doMock("../../lib/portal-cors.server", () => ({
       getPortalCorsHeaders: () => new Headers(),
       withCors: (r: Response) => r,
@@ -910,6 +976,8 @@ describe("api.portal.fynd-enrich — final branches", () => {
         shop: "store",
         type: "order",
         orderName: "#100",
+        portalToken: "t",
+        sessionId: "sess-1",
       }),
       params: {},
       context: {},
@@ -944,6 +1012,8 @@ describe("api.portal.fynd-enrich — final branches", () => {
         shop: "store",
         type: "returns",
         returnIds: ["rc-1"],
+        portalToken: "t",
+        sessionId: "sess-1",
       }),
       params: {},
       context: {},
@@ -977,6 +1047,8 @@ describe("api.portal.fynd-enrich — final branches", () => {
         shop: "store",
         type: "returns",
         returnIds: ["rc-2"],
+        portalToken: "t",
+        sessionId: "sess-1",
       }),
       params: {},
       context: {},
@@ -988,14 +1060,14 @@ describe("api.portal.fynd-enrich — final branches", () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────
-// 6. api.portal.otp.send.ts — non-email session.lookupValueNorm path
+// 6. api.portal.otp.send.ts — unsupported non-email session.lookupValueNorm path
 // ──────────────────────────────────────────────────────────────────────
 describe("api.portal.otp.send — final branches", () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  it("phone (non-email) target: skips sendOtpEmail, dev-mode console.log", async () => {
+  it("phone (non-email) target: fails closed instead of issuing an undeliverable OTP", async () => {
     const prisma = createPrismaMock();
     prisma.lookupSession.findUnique.mockResolvedValue({
       id: "sess-1",
@@ -1017,18 +1089,21 @@ describe("api.portal.otp.send — final branches", () => {
       rateLimitResponse: () => Response.json({ error: "rate" }, { status: 429 }),
     }));
     vi.doMock("../../lib/notification.server", () => ({ sendOtpEmail }));
-    process.env.NODE_ENV = "development"; // ensure dev-mode console.log branch fires
-    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const portalLogger = { debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    vi.doMock("../../lib/observability/logger.server", () => ({ portalLogger }));
+    process.env.NODE_ENV = "development"; // ensure dev-mode debug branch fires
     const action = (await import("../api.portal.otp.send")).action;
     const res = await action({
       request: jsonReq("https://a/api/portal/otp/send", { sessionId: "sess-1" }),
       params: {},
       context: {},
     } as never);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.phoneVerificationUnavailable).toBe(true);
+    expect(prisma.lookupSession.update).not.toHaveBeenCalled();
     expect(sendOtpEmail).not.toHaveBeenCalled();
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringMatching(/OTP/), expect.any(String));
-    consoleSpy.mockRestore();
+    expect(portalLogger.debug).not.toHaveBeenCalled();
     process.env.NODE_ENV = "test";
   });
 

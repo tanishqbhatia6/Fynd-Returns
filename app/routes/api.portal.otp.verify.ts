@@ -4,6 +4,8 @@ import prisma from "../db.server";
 import { createPortalToken } from "../lib/portal-auth.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
+import { portalOtpCounter } from "../lib/observability/metrics.server";
+import { portalLogger } from "../lib/observability/logger.server";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const MAX_VERIFY_ATTEMPTS = 5;
@@ -36,11 +38,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const rl = await checkRateLimit(request, "portal.otp.verify");
-  if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
+  if (!rl.allowed) {
+    portalOtpCounter.add(1, { action: "verify", outcome: "rate_limited" });
+    return withCors(rateLimitResponse(rl.retryAfterMs), request);
+  }
 
   try {
     const { sessionId, otp } = await request.json();
     if (!sessionId || !otp) {
+      portalOtpCounter.add(1, { action: "verify", outcome: "bad_request" });
       return withCors(
         Response.json({ error: "sessionId and otp required" }, { status: 400 }),
         request,
@@ -49,6 +55,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const session = await prisma.lookupSession.findUnique({ where: { id: sessionId } });
     if (!session || session.expiresAt < new Date()) {
+      portalOtpCounter.add(1, { action: "verify", outcome: "invalid_session" });
       return withCors(
         Response.json({ error: "Invalid or expired session" }, { status: 400 }),
         request,
@@ -56,6 +63,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     if (session.attemptsCount >= MAX_VERIFY_ATTEMPTS) {
+      portalOtpCounter.add(1, { action: "verify", outcome: "locked" });
       return withCors(
         Response.json({ error: "Too many attempts. Please request a new code." }, { status: 429 }),
         request,
@@ -79,6 +87,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       .filter((s) => !s.verifiedAt) // exclude successfully-verified sessions
       .reduce((sum, s) => sum + (s.attemptsCount ?? 0), 0);
     if (totalRecentFailures >= ACCOUNT_LOCK_MAX_FAILURES) {
+      portalOtpCounter.add(1, { action: "verify", outcome: "account_locked" });
       return withCors(
         Response.json(
           {
@@ -93,6 +102,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     if (!session.otpSentAt || Date.now() - session.otpSentAt.getTime() > OTP_TTL_MS) {
+      portalOtpCounter.add(1, { action: "verify", outcome: "expired" });
       return withCors(
         Response.json({ error: "Code has expired. Please request a new one." }, { status: 400 }),
         request,
@@ -100,6 +110,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     if (!session.otpTarget) {
+      portalOtpCounter.add(1, { action: "verify", outcome: "missing_code" });
       return withCors(
         Response.json(
           { error: "No verification code found. Please request one first." },
@@ -138,6 +149,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     if (!isValid) {
+      portalOtpCounter.add(1, { action: "verify", outcome: "invalid_code" });
       const updatedSession = await prisma.lookupSession.update({
         where: { id: sessionId },
         data: { attemptsCount: session.attemptsCount + 1 },
@@ -174,9 +186,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       data: { verifiedAt: new Date(), portalToken, otpTarget: null },
     });
 
-    return withCors(Response.json({ portalToken }), request);
+    portalOtpCounter.add(1, { action: "verify", outcome: "success" });
+    return withCors(Response.json({ portalToken, sessionId: session.id }), request);
   } catch (err) {
-    console.error("Portal OTP verify:", err);
+    portalOtpCounter.add(1, { action: "verify", outcome: "error" });
+    portalLogger.error({ err }, "Portal OTP verify failed");
     return withCors(Response.json({ error: "Verification failed" }, { status: 500 }), request);
   }
 };

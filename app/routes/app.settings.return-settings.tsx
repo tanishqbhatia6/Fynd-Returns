@@ -7,9 +7,8 @@ import { parseJsonArray } from "../lib/parse-json";
 import {
   parseReturnIdConfig,
   previewReturnRequestId,
-  DEFAULT_RETURN_ID_CONFIG,
 } from "../lib/return-request-id";
-import type { ReturnIdConfig, ReturnIdBodyMode } from "../lib/return-request-id";
+import type { ReturnIdBodyMode } from "../lib/return-request-id";
 import { findOrCreateShop } from "../lib/shop.server";
 import { fetchAllLocations } from "../lib/shopify-admin.server";
 import type { ShopLocation } from "../lib/shopify-admin.server";
@@ -418,7 +417,31 @@ export default function ReturnSettings() {
     [ridPrefix, ridSeparator, ridBodyMode, ridHashLength, ridSeqPadding, ridSuffix],
   );
 
+  const loaderSettingsFingerprint = JSON.stringify({
+    restrictedProductTags: data.restrictedProductTags,
+    refundLocationMode: data.refundLocationMode,
+    refundLocationId: data.refundLocationId,
+    refundPaymentMethod: data.refundPaymentMethod,
+    refundStoreCreditPct: data.refundStoreCreditPct,
+    photoRequired: data.photoRequired,
+    autoApproveEnabled: data.autoApproveEnabled,
+    autoRefundEnabled: data.autoRefundEnabled,
+    noReturnPeriodEnabled: data.noReturnPeriodEnabled,
+    portalExchangeEnabled: data.portalExchangeEnabled,
+    portalAllowedFulfillmentStatuses: data.portalAllowedFulfillmentStatuses,
+    fyndConsolidateReturns: data.fyndConsolidateReturns,
+    syncRefundToFynd: data.syncRefundToFynd,
+    fyndConsolidateWindowHours: data.fyndConsolidateWindowHours,
+    allowedFyndStatusesForRefund: data.allowedFyndStatusesForRefund,
+    refundGatePreset: data.refundGatePreset,
+    allowedFyndStatusesForReturn: data.allowedFyndStatusesForReturn,
+    returnIdConfig: data.returnIdConfig,
+  });
+  const lastLoaderSettingsFingerprint = React.useRef(loaderSettingsFingerprint);
+
   React.useEffect(() => {
+    if (lastLoaderSettingsFingerprint.current === loaderSettingsFingerprint) return;
+    lastLoaderSettingsFingerprint.current = loaderSettingsFingerprint;
     setTags(data.restrictedProductTags);
     setLocationMode(data.refundLocationMode === "manual" ? "manual" : "auto");
     setSelectedLocId(data.refundLocationId ?? "");
@@ -464,11 +487,13 @@ export default function ReturnSettings() {
     data.portalExchangeEnabled,
     data.portalAllowedFulfillmentStatuses,
     data.fyndConsolidateReturns,
+    data.syncRefundToFynd,
     data.fyndConsolidateWindowHours,
     data.allowedFyndStatusesForRefund,
     data.refundGatePreset,
     data.allowedFyndStatusesForReturn,
     data.returnIdConfig,
+    loaderSettingsFingerprint,
   ]);
 
   const addTag = () => {

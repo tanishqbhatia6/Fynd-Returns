@@ -2,6 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import shopifyApp, { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { fetchSubscriptionSnapshot } from "../lib/billing.server";
+import { webhookLogger } from "../lib/observability/logger.server";
 
 /**
  * app_subscriptions/update webhook.
@@ -27,10 +28,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     authed = await authenticate.webhook(request);
   } catch (err) {
     if (err instanceof Response) throw err;
-    console.error("[webhook:app-subscriptions/update] authenticate failed", {
-      error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-    });
+    webhookLogger.error(
+      { topic: "APP_SUBSCRIPTIONS_UPDATE", err },
+      "App subscription update webhook authentication failed",
+    );
     return new Response();
   }
 
@@ -58,11 +59,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
   } catch (err) {
-    console.error("[webhook:app-subscriptions/update]", {
-      shop,
-      error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-    });
+    webhookLogger.error({ topic: "APP_SUBSCRIPTIONS_UPDATE", shop, err }, "App subscription update failed");
   }
 
   return new Response();

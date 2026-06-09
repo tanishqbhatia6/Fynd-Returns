@@ -1,15 +1,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createFyndLogger } from "../fynd-logger.server";
 
-describe("createFyndLogger (deprecated shim)", () => {
-  let consoleSpy: ReturnType<typeof vi.spyOn>;
+const { fyndLoggerMock } = vi.hoisted(() => ({
+  fyndLoggerMock: {
+    debug: vi.fn(),
+  },
+}));
 
+vi.mock("../observability/logger.server", () => ({
+  fyndLogger: fyndLoggerMock,
+}));
+
+describe("createFyndLogger (deprecated shim)", () => {
   beforeEach(() => {
-    consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
-    consoleSpy.mockRestore();
+    vi.restoreAllMocks();
   });
 
   it("returns a logger with logs array and log fn", () => {
@@ -28,10 +36,13 @@ describe("createFyndLogger (deprecated shim)", () => {
     expect(logs[0].ts).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
-  it("also mirrors to console", () => {
+  it("also mirrors to the structured Fynd logger", () => {
     const { log } = createFyndLogger();
     log("step", "hello");
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("[Fynd step] hello"));
+    expect(fyndLoggerMock.debug).toHaveBeenCalledWith(
+      { step: "step", detail: undefined },
+      "hello",
+    );
   });
 
   it("redacts clientSecret in detail strings", () => {

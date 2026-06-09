@@ -12,7 +12,7 @@ ReturnProMax exposes several API surfaces, each with its own authentication:
 |------------------|--------------------------------------|-------------------------------|
 | Portal APIs      | JWT token (portal session)           | `Authorization: Bearer {jwt}` or `X-Portal-Token: {jwt}` |
 | Admin APIs       | Shopify session (embedded app auth)  | Shopify App Bridge session    |
-| Fynd APIs        | HMAC signature or open               | `X-Fynd-Signature` or none   |
+| Fynd APIs        | HMAC signature required              | `X-Fynd-Signature`           |
 | External APIs    | API key (Bearer token)               | `Authorization: Bearer rpm_{key}` |
 
 ---
@@ -52,11 +52,13 @@ Look up orders or returns by email, phone, order number, return ID, or AWB.
 **Response:**
 ```json
 {
-  "orders": [...],
-  "returns": [...],
-  "requiresOtp": false
+  "requiresOtp": true,
+  "sessionId": "clx4f8g9h...",
+  "contactHint": "cu***@example.com"
 }
 ```
+
+Verified repeat requests include the portal token and return only the minimum order or return fields required for the portal flow.
 
 ---
 
@@ -280,7 +282,7 @@ Receive Fynd shipment status update webhooks.
 
 **Headers:**
 - `Content-Type: application/json`
-- `X-Fynd-Signature` (optional HMAC verification)
+- `X-Fynd-Signature` (required HMAC verification)
 
 **Payload:** Variable structure from Fynd Platform. See [16-webhook-reference.md](./16-webhook-reference.md) for full payload documentation.
 

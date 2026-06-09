@@ -4,16 +4,22 @@
  * Focus areas (complementing api.portal.otp.send.test.ts):
  *   - Cooldown enforcement (boundary + wait-second math)
  *   - MAX_OTP_ATTEMPTS cap (at, above, just under)
- *   - Dev-mode console.log path for non-email targets
+ *   - Dev-mode structured logger path for non-email targets
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, sendOtpEmailMock, checkRateLimitMock } = vi.hoisted(() => ({
+const { prismaMock, sendOtpEmailMock, checkRateLimitMock, portalLoggerMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   sendOtpEmailMock: vi.fn(),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
+  portalLoggerMock: {
+    debug: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  },
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -29,6 +35,9 @@ vi.mock("../../lib/rate-limit.server", () => ({
 }));
 vi.mock("../../lib/notification.server", () => ({
   sendOtpEmail: sendOtpEmailMock,
+}));
+vi.mock("../../lib/observability/logger.server", () => ({
+  portalLogger: portalLoggerMock,
 }));
 
 import { action } from "../api.portal.otp.send";
@@ -52,6 +61,10 @@ beforeEach(() => {
   checkRateLimitMock
     .mockReset()
     .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  portalLoggerMock.debug.mockClear();
+  portalLoggerMock.warn.mockClear();
+  portalLoggerMock.error.mockClear();
+  portalLoggerMock.info.mockClear();
 });
 
 afterEach(() => {
@@ -110,7 +123,7 @@ describe("api.portal.otp.send — cooldown enforcement", () => {
       // exactly at the boundary: Date.now() - otpSentAt.getTime() === OTP_COOLDOWN_MS
       // condition is `< OTP_COOLDOWN_MS`, so equality should pass
       otpSentAt: new Date(Date.now() - OTP_COOLDOWN_MS - 5),
-      lookupValueNorm: "+14155551212",
+      lookupValueNorm: "u@example.com",
     });
     const res = await action({
       request: jsonReq({ sessionId: "s-1" }),
@@ -128,7 +141,7 @@ describe("api.portal.otp.send — cooldown enforcement", () => {
       expiresAt: new Date(Date.now() + 60_000),
       attemptsCount: 0,
       otpSentAt: null,
-      lookupValueNorm: "+14155551212",
+      lookupValueNorm: "u@example.com",
     });
     const res = await action({
       request: jsonReq({ sessionId: "s-1" }),
@@ -186,7 +199,7 @@ describe("api.portal.otp.send — max attempts cap", () => {
       expiresAt: new Date(Date.now() + 60_000),
       attemptsCount: MAX_OTP_ATTEMPTS - 1,
       otpSentAt: null,
-      lookupValueNorm: "+14155551212",
+      lookupValueNorm: "u@example.com",
     });
     const res = await action({
       request: jsonReq({ sessionId: "s-1" }),
@@ -206,7 +219,7 @@ describe("api.portal.otp.send — max attempts cap", () => {
       expiresAt: new Date(Date.now() + 60_000),
       attemptsCount: 1,
       otpSentAt: null,
-      lookupValueNorm: "+14155551212",
+      lookupValueNorm: "u@example.com",
     });
     const res = await action({
       request: jsonReq({ sessionId: "s-1" }),
@@ -218,16 +231,15 @@ describe("api.portal.otp.send — max attempts cap", () => {
     expect(updateArgs.where).toEqual({ id: "s-1" });
     expect(updateArgs.data.attemptsCount).toBe(2);
     expect(updateArgs.data.otpSentAt).toBeInstanceOf(Date);
-    // SHA-256 hash → 64 hex chars; raw OTP would be 6 digits.
-    expect(updateArgs.data.otpTarget).toMatch(/^[a-f0-9]{64}$/);
+    // bcrypt hash; raw OTP would be 6 digits.
+    expect(updateArgs.data.otpTarget).toMatch(/^\$2[aby]\$\d{2}\$/);
     expect(updateArgs.data.otpTarget).not.toMatch(/^\d{6}$/);
   });
 });
 
-describe("api.portal.otp.send — dev-mode console.log path", () => {
-  it("logs the OTP to console when NODE_ENV !== production and target is non-email", async () => {
+describe("api.portal.otp.send — unsupported phone channel", () => {
+  it("fails closed when the session target is not an email address", async () => {
     process.env.NODE_ENV = "development";
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "s-1",
       shopId: "shop-1",
@@ -241,14 +253,16 @@ describe("api.portal.otp.send — dev-mode console.log path", () => {
       params: {},
       context: {},
     } as never);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.phoneVerificationUnavailable).toBe(true);
+    expect(prismaMock.lookupSession.update).not.toHaveBeenCalled();
     expect(sendOtpEmailMock).not.toHaveBeenCalled();
-    expect(logSpy).toHaveBeenCalledWith("[OTP] Dev mode code:", expect.stringMatching(/^\d{6}$/));
+    expect(portalLoggerMock.debug).not.toHaveBeenCalled();
   });
 
-  it("does NOT console.log the OTP when NODE_ENV === production and target is non-email", async () => {
+  it("does not hash or send for non-email targets in production", async () => {
     process.env.NODE_ENV = "production";
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "s-1",
       shopId: "shop-1",
@@ -262,15 +276,14 @@ describe("api.portal.otp.send — dev-mode console.log path", () => {
       params: {},
       context: {},
     } as never);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
+    expect(prismaMock.lookupSession.update).not.toHaveBeenCalled();
     expect(sendOtpEmailMock).not.toHaveBeenCalled();
-    const otpLog = logSpy.mock.calls.find((c) => c[0] === "[OTP] Dev mode code:");
-    expect(otpLog).toBeUndefined();
+    expect(portalLoggerMock.debug).not.toHaveBeenCalled();
   });
 
-  it("does NOT console.log the OTP for email targets even in dev mode (email branch only)", async () => {
+  it("does NOT log the OTP for email targets even in dev mode (email branch only)", async () => {
     process.env.NODE_ENV = "development";
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "s-1",
       shopId: "shop-1",
@@ -287,7 +300,9 @@ describe("api.portal.otp.send — dev-mode console.log path", () => {
     } as never);
     expect(res.status).toBe(200);
     expect(sendOtpEmailMock).toHaveBeenCalledTimes(1);
-    const otpLog = logSpy.mock.calls.find((c) => c[0] === "[OTP] Dev mode code:");
-    expect(otpLog).toBeUndefined();
+    expect(portalLoggerMock.debug).not.toHaveBeenCalledWith(
+      expect.objectContaining({ otp: expect.any(String) }),
+      "Portal OTP generated in development mode",
+    );
   });
 });

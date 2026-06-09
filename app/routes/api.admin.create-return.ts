@@ -16,6 +16,7 @@ import {
   withRestCredentials,
 } from "../lib/shopify-admin.server";
 import shopify from "../shopify.server";
+import { appLogger } from "../lib/observability/logger.server";
 
 /**
  * Admin API: Create a return on behalf of a customer.
@@ -451,7 +452,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
   } catch (err) {
-    console.error("[admin.create-return] Error creating return:", err);
+    appLogger.error({ err, shopDomain }, "Admin create-return failed");
     return Response.json(
       { error: err instanceof Error ? err.message : "Failed to create return" },
       { status: 500 },

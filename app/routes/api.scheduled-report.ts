@@ -5,28 +5,14 @@
  * GET /api/scheduled-report — processes all shops with scheduled reports enabled.
  */
 import type { LoaderFunctionArgs } from "react-router";
-import { timingSafeEqual } from "crypto";
 import prisma from "../db.server";
 import nodemailer from "nodemailer";
-
-function safeCompare(a: string, b: string): boolean {
-  const aBuf = Buffer.from(a);
-  const bBuf = Buffer.from(b);
-  if (aBuf.length !== bBuf.length) {
-    timingSafeEqual(aBuf, Buffer.alloc(aBuf.length, 0));
-    return false;
-  }
-  return timingSafeEqual(aBuf, bBuf);
-}
+import { authorizeCronRequest } from "../lib/cron-auth.server";
+import { cronJobCounter } from "../lib/observability/metrics.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  // Simple auth: only allow from cron with secret header or localhost
-  const authHeader = request.headers.get("x-cron-secret") ?? "";
-  const cronSecret = process.env.CRON_SECRET;
-  // Constant-time compare avoids leaking the secret one byte at a time via
-  // response timing. `safeCompare` returns false on length mismatch but does
-  // a same-length compare so timing is independent of header length.
-  if (cronSecret && !safeCompare(authHeader, cronSecret)) {
+  if (!authorizeCronRequest(request)) {
+    cronJobCounter.add(1, { job: "scheduled_report", outcome: "unauthorized" });
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
 
@@ -266,6 +252,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       results.push({ shop: s.shop.shopDomain, sent: false, error: String(err) });
     }
   }
+
+  const failures = results.filter((r) => !r.sent).length;
+  cronJobCounter.add(1, {
+    job: "scheduled_report",
+    outcome: failures > 0 ? "partial_error" : "success",
+  });
 
   return Response.json({ processed: results.length, results });
 };

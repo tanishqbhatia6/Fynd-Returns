@@ -1,11 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const { runConsolidationForAllShopsMock } = vi.hoisted(() => ({
+const { runConsolidationForAllShopsMock, cronLoggerMock } = vi.hoisted(() => ({
   runConsolidationForAllShopsMock: vi.fn(),
+  cronLoggerMock: {
+    error: vi.fn(),
+  },
 }));
 
 vi.mock("../../lib/fynd-consolidation.server", () => ({
   runConsolidationForAllShops: runConsolidationForAllShopsMock,
+}));
+
+vi.mock("../../lib/observability/logger.server", () => ({
+  cronLogger: cronLoggerMock,
 }));
 
 import { loader, action } from "../api.fynd-consolidation-cron";
@@ -14,6 +21,7 @@ const origEnv = { ...process.env };
 beforeEach(() => {
   process.env = { ...origEnv };
   runConsolidationForAllShopsMock.mockReset();
+  cronLoggerMock.error.mockReset();
 });
 afterEach(() => {
   process.env = { ...origEnv };
@@ -160,17 +168,20 @@ describe("error handling during runConsolidation", () => {
     expect(typeof body.startedAt).toBe("string");
   });
 
-  it("logs fatal error to console.error", async () => {
+  it("logs fatal error to the cron logger", async () => {
     process.env.CRON_SECRET = "s";
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    runConsolidationForAllShopsMock.mockRejectedValueOnce(new Error("boom"));
+    const err = new Error("boom");
+    runConsolidationForAllShopsMock.mockRejectedValueOnce(err);
     const res = await action({
       request: mkReq({ method: "POST", auth: "Bearer s" }),
       params: {},
       context: {},
     } as never);
     expect(res.status).toBe(500);
-    expect(errSpy).toHaveBeenCalledWith("[FyndConsolidationCron] Fatal error:", expect.any(Error));
+    expect(cronLoggerMock.error).toHaveBeenCalledWith(
+      { err },
+      "Fynd consolidation cron failed",
+    );
   });
 
   it("propagates synchronous throw from runConsolidationForAllShops as 500", async () => {

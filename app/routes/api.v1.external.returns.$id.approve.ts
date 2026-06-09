@@ -3,6 +3,7 @@ import { authenticateApiKey } from "../lib/api-key-auth.server";
 import { apiSuccess, apiError, checkPerKeyRateLimit } from "../lib/external-api-helpers.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { dispatchWebhookEvent } from "../lib/webhook-dispatch.server";
+import { externalApiLogger } from "../lib/observability/logger.server";
 import prisma from "../db.server";
 
 const TERMINAL_STATUSES = ["approved", "rejected", "completed", "cancelled"];
@@ -88,7 +89,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       message: "Return approved successfully",
     });
   } catch (err) {
-    console.error("[external.returns.approve]", err);
+    externalApiLogger.error(
+      {
+        endpoint: "external.returns.approve",
+        shopId: auth.shopId,
+        keyId: auth.keyId,
+        returnId: id,
+        err,
+      },
+      "External return approve failed",
+    );
     return apiError(500, "INTERNAL_ERROR", "Failed to approve return");
   }
 };

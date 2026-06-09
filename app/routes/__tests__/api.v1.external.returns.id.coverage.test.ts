@@ -1,14 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateApiKeyMock, checkRateLimitMock, checkPerKeyRateLimitMock } =
-  vi.hoisted(() => ({
+const {
+  prismaMock,
+  authenticateApiKeyMock,
+  checkRateLimitMock,
+  checkPerKeyRateLimitMock,
+  externalApiLoggerMock,
+} = vi.hoisted(() => ({
     prismaMock: {} as ReturnType<typeof createPrismaMock>,
     authenticateApiKeyMock: vi.fn(),
     checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
     checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(
       async () => null,
     ),
+    externalApiLoggerMock: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
   }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -24,6 +30,9 @@ vi.mock("../../lib/external-api-helpers.server", async () => {
   );
   return { ...actual, checkPerKeyRateLimit: checkPerKeyRateLimitMock };
 });
+vi.mock("../../lib/observability/logger.server", () => ({
+  externalApiLogger: externalApiLoggerMock,
+}));
 
 import { loader } from "../api.v1.external.returns.$id";
 
@@ -37,6 +46,10 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
+  externalApiLoggerMock.error.mockClear();
+  externalApiLoggerMock.warn.mockClear();
+  externalApiLoggerMock.info.mockClear();
+  externalApiLoggerMock.debug.mockClear();
 });
 
 describe("GET /api/v1/external/returns/:id - coverage", () => {
@@ -299,14 +312,21 @@ describe("GET /api/v1/external/returns/:id - coverage", () => {
   });
 
   it("503/500 path: logs and returns INTERNAL_ERROR envelope on prisma throw", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     prismaMock.returnCase.findFirst.mockRejectedValueOnce(new Error("connection refused"));
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error.code).toBe("INTERNAL_ERROR");
-    expect(errSpy).toHaveBeenCalled();
-    errSpy.mockRestore();
+    expect(externalApiLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpoint: "external.returns.detail",
+        shopId: "shop-1",
+        keyId: "k-1",
+        returnId: "rc-1",
+        err: expect.objectContaining({ message: "connection refused" }),
+      }),
+      "External return detail failed",
+    );
   });
 
   it("does not call findFirst when id param is missing (short-circuits at 400)", async () => {

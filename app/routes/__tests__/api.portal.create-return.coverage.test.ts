@@ -93,6 +93,15 @@ vi.mock("../../lib/rate-limit.server", () => ({
 }));
 vi.mock("../../lib/portal-auth.server", () => ({
   verifyPortalCsrfToken: verifyPortalCsrfMock,
+  verifyPortalSession: vi.fn(async () => ({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "shopper@example.com",
+    matchedReturnIds: null,
+  })),
+  hashLookupValue: vi.fn(() => "hash"),
 }));
 vi.mock("../../lib/shopify-admin.server", () => ({
   fetchOrder: fetchOrderMock,
@@ -145,7 +154,12 @@ function jsonReq(body: unknown) {
   return new Request("https://app.example/api/portal/create-return", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      customerEmail: "shopper@example.com",
+      portalToken: "verified-token",
+      sessionId: "session-1",
+      ...(body as Record<string, unknown>),
+    }),
   });
 }
 
@@ -212,6 +226,7 @@ beforeEach(() => {
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
   fetchOrderMock.mockReset().mockResolvedValue({
     id: "gid://shopify/Order/1",
+    email: "shopper@example.com",
     displayFulfillmentStatus: "FULFILLED",
     displayFinancialStatus: "PAID",
     sourceName: "web",
@@ -374,22 +389,15 @@ describe("blocklist additional matchers", () => {
     expect(res.status).toBe(403);
   });
 
-  it("does not call blocklistEntry when no email/phone/order_name available", async () => {
+  it("checks blocklist and continues when no entry matches", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop({ blocklistEnabled: true }));
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
-    // No customer email/phone — but shopifyOrderName is always present, so
-    // blocklist will still query. Just confirm it does not 403 when empty.
     prismaMock.blocklistEntry.findFirst.mockResolvedValueOnce(null);
     const res = await action({
-      request: jsonReq({
-        ...happyBody(),
-        customerEmail: undefined,
-        customerPhone: undefined,
-      }),
+      request: jsonReq(happyBody()),
       params: {},
       context: {},
     } as never);
-    // Either reaches creation (200) or fails downstream — must not be 403
     expect(res.status).not.toBe(403);
     expect(prismaMock.blocklistEntry.findFirst).toHaveBeenCalled();
   });
@@ -733,6 +741,7 @@ describe("Fynd sync trigger", () => {
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     fetchOrderMock.mockResolvedValue({
       id: "gid://shopify/Order/7830278078614",
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       sourceName: "web",
@@ -853,6 +862,7 @@ describe("Fynd sync trigger", () => {
     (prismaMock.returnCase.findUnique as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     fetchOrderMock.mockResolvedValue({
       id: "gid://shopify/Order/1",
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       affiliateOrderId: "AFF-1",
@@ -933,6 +943,7 @@ describe("Fynd sync trigger", () => {
     (prismaMock.returnCase.findUnique as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     fetchOrderMock.mockResolvedValue({
       id: "gid://shopify/Order/1",
+    email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       affiliateOrderId: "AFF-2",

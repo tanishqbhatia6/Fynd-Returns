@@ -103,7 +103,7 @@ A configurable blackout window (`ShopSettings.noReturnPeriodEnabled`, `noReturnP
 ## O
 
 **OTP (One-Time Password)**
-A verification code sent to the customer's email or phone before granting portal access. Controlled by `ShopSettings.portalOtpEmailEnabled` and `portalOtpSmsEnabled`. OTP state (sent timestamp, verification timestamp, attempt count) is tracked on the `LookupSession` record.
+A verification code sent to the customer's email before granting portal access. Controlled by `ShopSettings.portalOtpEmailEnabled`; the `portalOtpSmsEnabled` schema field is locked on, but phone OTP starts fail closed until a real SMS/WhatsApp OTP delivery path is implemented. OTP state (sent timestamp, verification timestamp, attempt count) is tracked on the `LookupSession` record.
 
 ## P
 

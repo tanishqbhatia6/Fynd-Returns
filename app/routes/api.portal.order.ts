@@ -1,4 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
+import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import prisma from "../db.server";
 import {
   fetchOrderByOrderNumber,
@@ -15,8 +17,14 @@ import { checkReturnEligibility } from "../lib/return-rules.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { parseJsonArray } from "../lib/parse-json";
 import { createFyndClientOrError } from "../lib/fynd.server";
-import { createPortalCsrfToken } from "../lib/portal-auth.server";
+import {
+  createPortalCsrfToken,
+  hashLookupValue,
+  verifyPortalSession,
+} from "../lib/portal-auth.server";
 import { normalizeSourceChannel } from "../lib/source-channel.server";
+import { sendOtpEmail } from "../lib/notification.server";
+import { portalLogger } from "../lib/observability/logger.server";
 
 /**
  * Fynd statuses that always allow return initiation (regardless of merchant gate settings).
@@ -51,6 +59,148 @@ const FYND_DELIVERED_STATUSES = new Set([
 
 const FYND_RETURN_JOURNEY_STATUS_RE =
   /(^|_)(return|refund|credit_note)(_|$)|return_bag|return_dp|return_initiated|return_completed/;
+const ORDER_OTP_TTL_MS = 10 * 60 * 1000;
+const ORDER_OTP_COOLDOWN_MS = 60_000;
+const ORDER_OTP_BCRYPT_COST = 10;
+
+function portalTokenFromRequest(request: Request, url: URL): string | null {
+  const queryToken = url.searchParams.get("portalToken");
+  if (queryToken) return queryToken;
+  const headerToken = request.headers.get("X-Portal-Token");
+  if (headerToken) return headerToken;
+  const auth = request.headers.get("Authorization") || "";
+  return auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : null;
+}
+
+function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "your email";
+  const visible = local.length <= 2 ? `${local[0] ?? ""}*` : `${local.slice(0, 2)}***`;
+  return `${visible}@${domain}`;
+}
+
+function normalizedCustomerContacts(order: OrderForPortal): Array<{
+  type: "email" | "phone";
+  value: string;
+  hint: string;
+}> {
+  const contacts: Array<{ type: "email" | "phone"; value: string; hint: string }> = [];
+  const email = order.email?.trim().toLowerCase();
+  if (email && email.includes("@")) {
+    contacts.push({ type: "email", value: email, hint: maskEmail(email) });
+  }
+  const phone = (order.phone ?? order.shippingAddress?.phone ?? "").trim().replace(/[^\d+]/g, "");
+  if (phone) {
+    contacts.push({ type: "phone", value: phone, hint: "the phone number on the order" });
+  }
+  return contacts;
+}
+
+async function requireVerifiedOrderCustomer(args: {
+  request: Request;
+  url: URL;
+  shopId: string;
+  order: OrderForPortal;
+  shopDomain: string;
+}): Promise<Response | null> {
+  const contacts = normalizedCustomerContacts(args.order);
+  if (contacts.length === 0) {
+    return Response.json(
+      { error: "This order has no customer contact available for verification." },
+      { status: 403 },
+    );
+  }
+
+  const portalToken = portalTokenFromRequest(args.request, args.url);
+  const sessionId = args.url.searchParams.get("sessionId");
+  const verified = await verifyPortalSession(prisma, {
+    portalToken,
+    sessionId,
+    shopId: args.shopId,
+    allowedLookupTypes: ["email", "phone"],
+  });
+  if (verified) {
+    const ownsOrder = contacts.some(
+      (contact) =>
+        verified.lookupType === contact.type &&
+        verified.lookupValueHash === hashLookupValue(contact.value),
+    );
+    if (ownsOrder) return null;
+    return Response.json(
+      { error: "Verified customer does not match this order." },
+      { status: 403 },
+    );
+  }
+
+  const emailContact = contacts.find((contact) => contact.type === "email");
+  if (!emailContact) {
+    return Response.json(
+      { error: "Email verification is required before viewing this order." },
+      { status: 403 },
+    );
+  }
+
+  const lookupValueHash = hashLookupValue(emailContact.value);
+  const existing = await prisma.lookupSession.findFirst({
+    where: {
+      shopId: args.shopId,
+      lookupType: "email",
+      lookupValueHash,
+      verifiedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (existing?.otpSentAt) {
+    const cooldownRemaining = Math.max(
+      0,
+      ORDER_OTP_COOLDOWN_MS - (Date.now() - existing.otpSentAt.getTime()),
+    );
+    if (cooldownRemaining > 0) {
+      return Response.json({
+        requiresOtp: true,
+        sessionId: existing.id,
+        contactHint: emailContact.hint,
+        cooldownMs: cooldownRemaining,
+      });
+    }
+  }
+
+  const otp = String(crypto.randomInt(100000, 1000000));
+  const otpHash = await bcrypt.hash(otp, ORDER_OTP_BCRYPT_COST);
+  const session = existing
+    ? await prisma.lookupSession.update({
+        where: { id: existing.id },
+        data: {
+          otpTarget: otpHash,
+          otpSentAt: new Date(),
+          attemptsCount: existing.attemptsCount + 1,
+          expiresAt: new Date(Date.now() + ORDER_OTP_TTL_MS),
+        },
+      })
+    : await prisma.lookupSession.create({
+        data: {
+          shopId: args.shopId,
+          lookupType: "email",
+          lookupValueHash,
+          lookupValueNorm: emailContact.value,
+          otpTarget: otpHash,
+          otpSentAt: new Date(),
+          attemptsCount: 1,
+          expiresAt: new Date(Date.now() + ORDER_OTP_TTL_MS),
+        },
+      });
+  try {
+    await sendOtpEmail({ shopDomain: args.shopDomain, to: emailContact.value, otp });
+  } catch (err) {
+    portalLogger.warn({ err, shopDomain: args.shopDomain }, "Portal order OTP email send failed");
+  }
+  return Response.json({
+    requiresOtp: true,
+    sessionId: session.id,
+    contactHint: emailContact.hint,
+  });
+}
 
 function isForwardFyndShipment(shipment: Record<string, unknown>): boolean {
   const journeyType = safeStr(
@@ -307,8 +457,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         { fyndOrderId: { equals: orderNumber, mode: "insensitive" } },
       ],
     },
-    include: {
-      items: true,
+    select: {
+      id: true,
+      returnRequestNo: true,
+      status: true,
+      refundStatus: true,
+      createdAt: true,
+      fyndReturnNo: true,
+      items: {
+        select: {
+          shopifyLineItemId: true,
+          notes: true,
+          sku: true,
+          qty: true,
+          reasonCode: true,
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
     take: 10,
@@ -867,7 +1031,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       },
                     })
                     .catch((e: unknown) => {
-                      console.warn("[portal/order] FyndOrderMapping upsert failed:", e);
+                      portalLogger.warn(
+                        { err: e, shopDomain },
+                        "Portal order FyndOrderMapping upsert failed",
+                      );
                     });
                 }
 
@@ -1228,14 +1395,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         Response.json(
           {
             error: "Order not found",
-            existingReturns: formattedReturns,
-            activeReturns,
           },
           { status: 404 },
         ),
         request,
       );
     }
+
+    const authGate = await requireVerifiedOrderCustomer({
+      request,
+      url,
+      shopId: shopRecord.id,
+      shopDomain: shopRecord.shopDomain,
+      order,
+    });
+    if (authGate) return withCors(authGate, request);
 
     // Load shop settings for eligibility gates (load once, reuse below)
     const settings = await prisma.shopSettings.findUnique({ where: { shopId: shopRecord.id } });
@@ -1642,7 +1816,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       request,
     );
   } catch (err) {
-    console.error("Portal order fetch:", err);
+    portalLogger.error({ err, shopDomain, orderNumber }, "Portal order fetch failed");
     if ((err as { name?: string }).name === "SessionNotFoundError") {
       return withCors(
         Response.json(
@@ -1660,9 +1834,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             orderNumber: orderNumber?.replace(/^#/, "").trim(),
             error:
               "We couldn't fetch your order automatically. Use the form below to submit your return request—the store will process it manually.",
-            existingReturns: formattedReturns,
-            activeReturns,
-            portalCsrfToken: createPortalCsrfToken(shopRecord.shopDomain),
           },
           { status: 200 },
         ),
@@ -1678,9 +1849,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             orderNumber: orderNumber?.replace(/^#/, "").trim(),
             error:
               "We couldn't fetch your order automatically. Use the form below to submit your return request—the store will process it manually.",
-            existingReturns: formattedReturns,
-            activeReturns,
-            portalCsrfToken: createPortalCsrfToken(shopRecord.shopDomain),
           },
           { status: 200 },
         ),
@@ -1694,9 +1862,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           orderNumber: orderNumber?.replace(/^#/, "").trim(),
           error:
             "We couldn't find this order automatically. Please use the form below to submit your return request.",
-          existingReturns: formattedReturns,
-          activeReturns,
-          portalCsrfToken: createPortalCsrfToken(shopRecord.shopDomain),
         },
         { status: 200 },
       ),

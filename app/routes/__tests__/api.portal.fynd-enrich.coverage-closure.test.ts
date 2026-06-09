@@ -16,6 +16,7 @@ const {
   extractFyndJourneyMock,
   getTrackingInfoMock,
   getPickupAddressMock,
+  verifyPortalSessionMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
@@ -27,6 +28,7 @@ const {
   extractFyndJourneyMock: vi.fn(() => []),
   getTrackingInfoMock: vi.fn(() => null),
   getPickupAddressMock: vi.fn(() => null),
+  verifyPortalSessionMock: vi.fn(),
 }));
 Object.assign(prismaMock, createPrismaMock());
 (prismaMock as unknown as Record<string, unknown>).fyndOrderMapping = {
@@ -51,14 +53,21 @@ vi.mock("../../lib/fynd-payload.server", () => ({
   getTrackingInfoFromFyndPayload: getTrackingInfoMock,
   getPickupAddressFromFyndPayload: getPickupAddressMock,
 }));
+vi.mock("../../lib/portal-auth.server", () => ({
+  verifyPortalSession: verifyPortalSessionMock,
+}));
 
 import { action } from "../api.portal.fynd-enrich";
 
 function jsonReq(body: unknown) {
+  const payload =
+    body && typeof body === "object" && !Array.isArray(body)
+      ? { portalToken: "t", sessionId: "sess-1", ...body }
+      : body;
   return new Request("https://app.example/api/portal/fynd-enrich", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -69,6 +78,14 @@ beforeEach(() => {
     .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
   createFyndClientOrErrorMock.mockReset();
   parseFyndOrderDetailsMock.mockReset().mockReturnValue(null);
+  verifyPortalSessionMock.mockReset().mockResolvedValue({
+    id: "sess-1",
+    shopId: "shop-1",
+    lookupType: "order_no",
+    lookupValueHash: "hash",
+    lookupValueNorm: "",
+    matchedReturnIds: "[]",
+  });
 });
 
 describe("api.portal.fynd-enrich — coverage closure", () => {

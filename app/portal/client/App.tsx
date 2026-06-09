@@ -424,9 +424,10 @@ function LookupPanel({
     setLoading(true);
     setError("");
     try {
-      const verified = await api.verifyOtp(otp.sessionId, otpCode.trim());
+      const verified = await api.verifyOtp(bootstrap.shop, otp.sessionId, otpCode.trim());
       if (!verified.portalToken) throw new Error("Verification failed.");
       window.__RPM_AUTH_TOKEN__ = verified.portalToken;
+      window.__RPM_AUTH_SESSION_ID__ = otp.sessionId;
       const data = await api.lookup({
         shop: bootstrap.shop,
         lookupType: otp.lookupType,
@@ -448,7 +449,7 @@ function LookupPanel({
   async function resendOtp() {
     if (!otp) return;
     try {
-      await api.resendOtp(otp.sessionId);
+      await api.resendOtp(bootstrap.shop, otp.sessionId);
       notify({ tone: "success", message: "Code sent again." });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to resend code.");
@@ -833,7 +834,7 @@ function CreateReturnPanel({
   notify: (toast: Toast) => void;
   switchToTrackReturn: () => void;
 }) {
-  const [step, setStep] = useState<"start" | "items" | "manual" | "existing" | "success">("start");
+  const [step, setStep] = useState<"start" | "verify" | "items" | "manual" | "existing" | "success">("start");
   const [orderNumber, setOrderNumber] = useState("");
   const [orderData, setOrderData] = useState<OrderResponse | null>(null);
   const [rows, setRows] = useState<ItemSelection[]>([]);
@@ -857,6 +858,9 @@ function CreateReturnPanel({
   const [loading, setLoading] = useState(false);
   const [slowLoading, setSlowLoading] = useState(false);
   const [error, setError] = useState("");
+  const [orderOtpSessionId, setOrderOtpSessionId] = useState("");
+  const [orderOtpCode, setOrderOtpCode] = useState("");
+  const [orderOtpHint, setOrderOtpHint] = useState("");
 
   const selectedRows = useMemo(
     () => rows.filter((row) => selected[row.rowKey] && !row.disabled),
@@ -918,7 +922,18 @@ function CreateReturnPanel({
     setOfferAccepted(null);
     setSubmittedItems([]);
     try {
-      const data = await api.order(bootstrap.shop, value);
+      const data = await api.order(bootstrap.shop, value, {
+        portalToken: window.__RPM_AUTH_TOKEN__,
+        sessionId: window.__RPM_AUTH_SESSION_ID__,
+      });
+      if (data.requiresOtp && data.sessionId) {
+        setOrderOtpSessionId(data.sessionId);
+        setOrderOtpHint(data.contactHint || "your order contact");
+        setOrderOtpCode("");
+        setStep("verify");
+        notify({ tone: "info", message: "Verification code sent." });
+        return;
+      }
       if (!data.order) throw new Error(data.error || "Order not found.");
       const normalizedRows = normalizeItems(data);
       setOrderData(data);
@@ -935,6 +950,54 @@ function CreateReturnPanel({
     }
   }
 
+  async function verifyOrderOtp() {
+    const value = orderNumber.trim().replace(/^#/, "");
+    if (!orderOtpSessionId) {
+      setError("Start order lookup again.");
+      return;
+    }
+    if (orderOtpCode.trim().length < 4) {
+      setError("Enter the verification code.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const verified = await api.verifyOtp(bootstrap.shop, orderOtpSessionId, orderOtpCode.trim());
+      if (!verified.portalToken) throw new Error("Verification failed.");
+      window.__RPM_AUTH_TOKEN__ = verified.portalToken;
+      window.__RPM_AUTH_SESSION_ID__ = orderOtpSessionId;
+      const data = await api.order(bootstrap.shop, value, {
+        portalToken: verified.portalToken,
+        sessionId: orderOtpSessionId,
+      });
+      if (!data.order) throw new Error(data.error || "Order not found.");
+      const normalizedRows = normalizeItems(data);
+      setOrderData(data);
+      setRows(normalizedRows);
+      setEmail(data.order.email || "");
+      setSelected({});
+      setQty(Object.fromEntries(normalizedRows.map((row) => [row.rowKey, Math.min(1, row.availableQty || 1)])));
+      const hasAvailable = normalizedRows.some((row) => !row.disabled && row.availableQty > 0);
+      setStep((data.activeReturns || []).length > 0 && !hasAvailable ? "existing" : "items");
+      setOrderOtpCode("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Verification failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resendOrderOtp() {
+    if (!orderOtpSessionId) return;
+    try {
+      await api.resendOtp(bootstrap.shop, orderOtpSessionId);
+      notify({ tone: "success", message: "Code sent again." });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to resend code.");
+    }
+  }
+
   async function submitManual() {
     if (!orderNumber.trim()) {
       setError("Enter the order number.");
@@ -946,6 +1009,10 @@ function CreateReturnPanel({
     }
     if (!manualItems.trim()) {
       setError("Describe the items you want to return.");
+      return;
+    }
+    if (!window.__RPM_AUTH_TOKEN__ || !window.__RPM_AUTH_SESSION_ID__) {
+      setError("Verify the order before submitting a manual return.");
       return;
     }
     if (bootstrap.config.allowMediaUploads !== false && mediaFiles.length === 0) {
@@ -961,6 +1028,8 @@ function CreateReturnPanel({
         manualItemDescription: manualItems.trim(),
         customerNotes: notes.trim() || undefined,
         items: [{ lineItemId: "manual", qty: 1, reasonCode: reason || "Other" }],
+        portalToken: window.__RPM_AUTH_TOKEN__,
+        sessionId: window.__RPM_AUTH_SESSION_ID__,
         portalCsrfToken: window.__RPM_PORTAL_CSRF__,
       },
       [
@@ -1017,6 +1086,8 @@ function CreateReturnPanel({
         lineItemEstimates: orderData.lineItemEstimates || undefined,
         shipmentsSnapshot: orderData.shipments || undefined,
         acceptOffer,
+        portalToken: window.__RPM_AUTH_TOKEN__,
+        sessionId: window.__RPM_AUTH_SESSION_ID__,
         portalCsrfToken: window.__RPM_PORTAL_CSRF__,
       },
       buildSubmittedItems(selectedRows, qty, reason, condition),
@@ -1119,6 +1190,48 @@ function CreateReturnPanel({
           <button className="rpm-button secondary" type="button" onClick={() => setStep("start")}>
             <ArrowLeft size={16} />
             Search another order
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  if (step === "verify") {
+    return (
+      <section>
+        <Stepper active={1} />
+        <SectionHead
+          icon={<ShieldCheck size={20} />}
+          title="Verify order access"
+          copy={`Enter the code sent to ${orderOtpHint}.`}
+        />
+        <div className="rpm-form-grid">
+          <Field className="rpm-field">
+            <Label className="rpm-label">Verification code</Label>
+            <input
+              className="rpm-input"
+              inputMode="numeric"
+              value={orderOtpCode}
+              onChange={(event) => setOrderOtpCode(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void verifyOrderOtp();
+              }}
+            />
+          </Field>
+          <button className="rpm-button" type="button" disabled={loading} onClick={() => void verifyOrderOtp()}>
+            {loading ? <Loader2 className="rpm-spin" size={16} /> : <ShieldCheck size={16} />}
+            Verify
+          </button>
+          <button className="rpm-button secondary" type="button" disabled={loading} onClick={() => void resendOrderOtp()}>
+            <RefreshCw size={16} />
+            Send again
+          </button>
+        </div>
+        {error && <ErrorBox message={error} />}
+        <div className="rpm-footer-actions">
+          <button className="rpm-button secondary" type="button" onClick={() => setStep("start")}>
+            <ArrowLeft size={16} />
+            {t(bootstrap, "portal.common.back")}
           </button>
         </div>
       </section>

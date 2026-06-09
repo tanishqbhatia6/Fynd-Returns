@@ -13,11 +13,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateWebhookMock, extractAffiliateOrderIdMock } = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateWebhookMock: vi.fn(),
-  extractAffiliateOrderIdMock: vi.fn(() => "FYNDX1"),
-}));
+const { prismaMock, authenticateWebhookMock, extractAffiliateOrderIdMock, webhookLoggerMock } =
+  vi.hoisted(() => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateWebhookMock: vi.fn(),
+    extractAffiliateOrderIdMock: vi.fn(() => "FYNDX1"),
+    webhookLoggerMock: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+  }));
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -26,6 +28,9 @@ vi.mock("../../shopify.server", () => ({
 }));
 vi.mock("../../lib/shopify-admin.server", () => ({
   extractAffiliateOrderId: extractAffiliateOrderIdMock,
+}));
+vi.mock("../../lib/observability/logger.server", () => ({
+  webhookLogger: webhookLoggerMock,
 }));
 
 import { action as draftOrdersCreateAction } from "../webhooks.draft-orders.create";
@@ -40,6 +45,10 @@ beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateWebhookMock.mockReset();
   extractAffiliateOrderIdMock.mockReset().mockReturnValue("FYNDX1");
+  webhookLoggerMock.error.mockClear();
+  webhookLoggerMock.warn.mockClear();
+  webhookLoggerMock.info.mockClear();
+  webhookLoggerMock.debug.mockClear();
 });
 
 describe("webhooks.draft-orders.create", () => {
@@ -153,21 +162,24 @@ describe("webhooks.customers.data_request", () => {
   });
 
   it("does NOT log raw customer email (PII)", async () => {
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
-    try {
-      authenticateWebhookMock.mockResolvedValueOnce({
-        shop: "store.myshopify.com",
-        payload: { customer: { id: 123, email: "secret@user.com" } },
-      });
-      prismaMock.shop.findUnique.mockResolvedValueOnce(null);
-      await customersDataRequestAction({ request: mkReq(), params: {}, context: {} } as never);
+    authenticateWebhookMock.mockResolvedValueOnce({
+      shop: "store.myshopify.com",
+      payload: { customer: { id: 123, email: "secret@user.com" } },
+    });
+    prismaMock.shop.findUnique.mockResolvedValueOnce(null);
+    await customersDataRequestAction({ request: mkReq(), params: {}, context: {} } as never);
 
-      const allLogs = logSpy.mock.calls.flat().join(" ");
-      expect(allLogs).not.toContain("secret@user.com");
-      expect(allLogs).toContain("[present]");
-    } finally {
-      logSpy.mockRestore();
-    }
+    const loggerPayload = JSON.stringify(webhookLoggerMock.info.mock.calls);
+    expect(loggerPayload).not.toContain("secret@user.com");
+    expect(webhookLoggerMock.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "CUSTOMERS_DATA_REQUEST",
+        shop: "store.myshopify.com",
+        hasCustomerId: true,
+        hasCustomerEmail: true,
+      }),
+      "Shopify customer data request webhook received",
+    );
   });
 
   it("returns 200 even when shop not found", async () => {

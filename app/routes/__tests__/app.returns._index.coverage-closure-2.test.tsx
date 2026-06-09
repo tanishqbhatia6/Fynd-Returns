@@ -324,19 +324,19 @@ describe("bulk action handler branches", () => {
     });
     await waitFor(() => expect(container.querySelector("tbody tr")).toBeTruthy());
     const rowCheckbox = container.querySelector("tbody input[type='checkbox']") as HTMLInputElement;
-    fireEvent.click(rowCheckbox);
-    const approveBtn = Array.from(container.querySelectorAll("button")).find((b) =>
-      /approve/i.test(b.textContent || ""),
-    );
-    if (approveBtn) {
-      await act(async () => {
-        fireEvent.click(approveBtn);
-      });
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-    }
-    expect(fetchFailMock).toHaveBeenCalled();
+    const checkboxCell = rowCheckbox.closest("td") as HTMLTableCellElement;
+    fireEvent.click(checkboxCell);
+    const approveBtn = await waitFor(() => {
+      expect(container.textContent).toContain("1 selected");
+      return Array.from(container.querySelectorAll("button")).find((button) =>
+        /^approve$/i.test(button.textContent?.trim() || ""),
+      ) as HTMLButtonElement;
+    });
+    await act(async () => {
+      fireEvent.click(approveBtn);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(fetchFailMock).toHaveBeenCalled());
   });
 });

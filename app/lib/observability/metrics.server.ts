@@ -195,6 +195,11 @@ export const fyndRetryAttempt = meter.createCounter("fynd.retry.attempt.total", 
   description: "Individual Fynd retry attempts",
 });
 
+/** Cron job executions */
+export const cronJobCounter = meter.createCounter("cron.job.count", {
+  description: "Cron job executions by job name and outcome",
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Security Metrics
 // ═══════════════════════════════════════════════════════════════════════════
@@ -217,6 +222,11 @@ export const rateLimitRejectedCounter = meter.createCounter("rate_limit.rejected
 /** Rate limit check counter */
 export const rateLimitCheckCounter = meter.createCounter("rate_limit.check.total", {
   description: "Total rate limit checks by endpoint and result",
+});
+
+/** OTP sends and verification attempts */
+export const portalOtpCounter = meter.createCounter("portal.otp.count", {
+  description: "Portal OTP sends and verification attempts by action and outcome",
 });
 
 /** Webhook signature failure counter */
@@ -261,6 +271,16 @@ export const fallbackActivated = meter.createCounter("fallback.activated.total",
 export const healthCheckDuration = meter.createHistogram("health_check.duration", {
   description: "Duration of health check probes in milliseconds",
   unit: "ms",
+});
+
+/** Redis health status: 1=ok, 0=unavailable */
+export const redisHealthStatus = meter.createObservableGauge("redis.health.status", {
+  description: "Redis availability status for readiness and rate limiting",
+});
+
+/** Redis operation failures */
+export const redisFailureCounter = meter.createCounter("redis.failure.total", {
+  description: "Redis operation failures by operation",
 });
 
 /** Deploy marker counter — increment once at startup */

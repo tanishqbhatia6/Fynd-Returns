@@ -9,45 +9,25 @@
  * with header: Authorization: Bearer <CRON_SECRET>
  */
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { timingSafeEqual } from "crypto";
+import { authorizeCronRequest } from "../lib/cron-auth.server";
 import { runConsolidationForAllShops } from "../lib/fynd-consolidation.server";
-
-function safeCompare(a: string, b: string): boolean {
-  // Length mismatch: return false but still do a constant-time compare against
-  // a same-length buffer so we don't leak length via timing.
-  const aBuf = Buffer.from(a);
-  const bBuf = Buffer.from(b);
-  if (aBuf.length !== bBuf.length) {
-    // Compare against a dummy buffer of the same length as `a` so timing is
-    // independent of `b`'s length.
-    timingSafeEqual(aBuf, Buffer.alloc(aBuf.length, 0));
-    return false;
-  }
-  return timingSafeEqual(aBuf, bBuf);
-}
-
-function isAuthorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    // If no secret configured, only allow from localhost (dev mode)
-    const host = request.headers.get("host") ?? "";
-    return host.includes("localhost") || host.includes("127.0.0.1");
-  }
-  const auth = request.headers.get("authorization") ?? "";
-  // Constant-time compare so an attacker can't probe the secret byte by byte
-  // via response timing.
-  return safeCompare(auth, `Bearer ${secret}`);
-}
+import { cronLogger } from "../lib/observability/logger.server";
+import { cronJobCounter } from "../lib/observability/metrics.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  if (request.method === "GET" && isAuthorized(request)) {
-    return runCron();
+  if (request.method !== "GET") {
+    return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
-  return Response.json({ error: "Method not allowed" }, { status: 405 });
+  if (!authorizeCronRequest(request)) {
+    cronJobCounter.add(1, { job: "fynd_consolidation", outcome: "unauthorized" });
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return runCron();
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  if (!isAuthorized(request)) {
+  if (!authorizeCronRequest(request)) {
+    cronJobCounter.add(1, { job: "fynd_consolidation", outcome: "unauthorized" });
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   return runCron();
@@ -60,6 +40,10 @@ async function runCron() {
     const totalGroups = results.reduce((s, r) => s + r.groupsProcessed, 0);
     const totalCases = results.reduce((s, r) => s + r.casesUpdated, 0);
     const allErrors = results.flatMap((r) => r.errors);
+    cronJobCounter.add(1, {
+      job: "fynd_consolidation",
+      outcome: allErrors.length > 0 ? "partial_error" : "success",
+    });
     return Response.json({
       ok: true,
       startedAt,
@@ -69,7 +53,8 @@ async function runCron() {
       errors: allErrors.length > 0 ? allErrors : undefined,
     });
   } catch (err) {
-    console.error("[FyndConsolidationCron] Fatal error:", err);
+    cronJobCounter.add(1, { job: "fynd_consolidation", outcome: "error" });
+    cronLogger.error({ err }, "Fynd consolidation cron failed");
     return Response.json(
       {
         ok: false,

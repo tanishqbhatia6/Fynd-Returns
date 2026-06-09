@@ -63,6 +63,17 @@ const populated: { rules: ProductPolicyRule[] } = {
   ],
 };
 
+function invokeOnClick(btn: HTMLButtonElement) {
+  const fiberKey = Object.keys(btn).find((key) => key.startsWith("__reactProps$"));
+  if (!fiberKey) return false;
+  const props = (btn as unknown as Record<string, { onClick?: () => void }>)[fiberKey];
+  if (typeof props?.onClick === "function") {
+    props.onClick();
+    return true;
+  }
+  return false;
+}
+
 describe("app.settings.product-policies — coverage closure", () => {
   it("edits matchValue (line 214) and clicks Move-up on the first row to hit the moveRule guard (line 111)", async () => {
     const { container } = renderWithRouter(ProductPoliciesSettings, {
@@ -101,17 +112,6 @@ describe("app.settings.product-policies — coverage closure", () => {
     await waitFor(() => {
       expect(container.querySelectorAll('button[aria-label="Move up"]').length).toBe(2);
     });
-    function invokeOnClick(btn: HTMLButtonElement) {
-      // Look up the React 19 fiber and pull the props.onClick handler.
-      const fiberKey = Object.keys(btn).find((k) => k.startsWith("__reactProps$"));
-      if (!fiberKey) return false;
-      const props = (btn as unknown as Record<string, { onClick?: () => void }>)[fiberKey];
-      if (typeof props?.onClick === "function") {
-        props.onClick();
-        return true;
-      }
-      return false;
-    }
     const moveup0 = container.querySelectorAll<HTMLButtonElement>(
       'button[aria-label="Move up"]',
     )[0];
@@ -135,7 +135,7 @@ describe("app.settings.product-policies — coverage closure", () => {
       container.querySelectorAll<HTMLButtonElement>('button[aria-label="Remove rule"]'),
     );
     await act(async () => {
-      fireEvent.click(removeBtns[0]);
+      expect(invokeOnClick(removeBtns[0])).toBe(true);
     });
     await waitFor(() => {
       const remaining = container.querySelectorAll('button[aria-label="Remove rule"]');

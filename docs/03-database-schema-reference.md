@@ -265,8 +265,8 @@ Per-shop configuration. One-to-one with `Shop`. Contains 60+ fields covering ret
 
 | Field                   | Type      | Nullable | Default  | Description                                          |
 |-------------------------|-----------|----------|----------|------------------------------------------------------|
-| `portalOtpEmailEnabled` | `Boolean` | No       | `false`  | Require OTP for email-based portal lookups           |
-| `portalOtpSmsEnabled`   | `Boolean` | No       | `false`  | Require OTP for phone-based portal lookups           |
+| `portalOtpEmailEnabled` | `Boolean` | No       | `true`   | Require OTP for email-based portal lookups           |
+| `portalOtpSmsEnabled`   | `Boolean` | No       | `true`   | Locked-on legacy field; phone OTP starts fail closed until SMS/WhatsApp OTP delivery is implemented |
 
 ### Portal Customization
 
@@ -501,7 +501,7 @@ Temporary sessions created during customer portal order lookups. Handles OTP ver
 | `lookupValueHash`  | `String`   | No       | --       | SHA-256 hash of the normalized lookup value          |
 | `lookupValueNorm`  | `String`   | Yes      | `null`   | Normalized lookup value (optional, for debugging)    |
 | `matchedReturnIds` | `String`   | Yes      | `null`   | Comma-separated matched return case IDs              |
-| `otpTarget`        | `String`   | Yes      | `null`   | Email or phone the OTP was sent to                   |
+| `otpTarget`        | `String`   | Yes      | `null`   | Bcrypt hash of the email OTP                         |
 | `otpSentAt`        | `DateTime` | Yes      | `null`   | When OTP was sent                                    |
 | `verifiedAt`       | `DateTime` | Yes      | `null`   | When OTP was verified                                |
 | `expiresAt`        | `DateTime` | No       | --       | Session expiry timestamp                             |

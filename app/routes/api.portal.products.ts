@@ -8,7 +8,10 @@
  */
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
+import { verifyPortalSession } from "../lib/portal-auth.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
+import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
+import { portalLogger } from "../lib/observability/logger.server";
 
 // Cap upstream Shopify Admin REST calls so a hung backend doesn't pin the
 // portal request thread indefinitely. 10s matches the Fynd client.
@@ -50,11 +53,15 @@ interface PortalVariant {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: getPortalCorsHeaders(request) });
+  }
+
   // Rate limit FIRST — was previously absent, allowing catalog enumeration. The
   // exchange variant picker on the customer portal calls this 1-2 times per item;
   // 60/min is plenty for legitimate flows.
   const rl = await checkRateLimit(request, "portal.products");
-  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
+  if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
 
   const url = new URL(request.url);
   const shopDomain = url.searchParams.get("shop") || "";
@@ -64,17 +71,37 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const limit = Math.min(parseInt(url.searchParams.get("limit") || "20", 10), 50);
 
   if (!shopDomain) {
-    return Response.json({ error: "Missing shop parameter" }, { status: 400 });
+    return withCors(Response.json({ error: "Missing shop parameter" }, { status: 400 }), request);
   }
 
-  // Verify shop exists and has portal exchange enabled
+  // Verify shop exists before validating the portal token against its shopId.
   const shop = await prisma.shop.findUnique({
     where: { shopDomain: shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com` },
     include: { settings: true },
   });
 
+  if (!shop) {
+    return withCors(Response.json({ error: "Shop not found" }, { status: 404 }), request);
+  }
+
+  const authHeader = request.headers.get("Authorization") ?? "";
+  const bearerToken = authHeader.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  const portalToken = url.searchParams.get("portalToken") || bearerToken || "";
+  const sessionId = url.searchParams.get("sessionId") || "";
+  const verifiedSession = await verifyPortalSession(prisma, {
+    portalToken,
+    sessionId,
+    shopId: shop.id,
+  });
+  if (!verifiedSession) {
+    return withCors(
+      Response.json({ error: "Verified customer session is required" }, { status: 401 }),
+      request,
+    );
+  }
+
   if (!shop?.settings?.portalExchangeEnabled) {
-    return Response.json({ error: "Exchange not enabled" }, { status: 403 });
+    return withCors(Response.json({ error: "Exchange not enabled" }, { status: 403 }), request);
   }
 
   // Get admin session for this shop
@@ -84,7 +111,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   });
 
   if (!session?.accessToken) {
-    return Response.json({ error: "Shop not authenticated" }, { status: 401 });
+    return withCors(Response.json({ error: "Shop not authenticated" }, { status: 401 }), request);
   }
 
   try {
@@ -144,10 +171,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }))
       .filter((p) => p.variants.length > 0);
 
-    return Response.json({ products: availableProducts });
+    return withCors(Response.json({ products: availableProducts }), request);
   } catch (err) {
-    console.error("Portal products API error:", err);
-    return Response.json({ error: "Failed to fetch products" }, { status: 500 });
+    portalLogger.error({ err, shopDomain }, "Portal products API failed");
+    return withCors(Response.json({ error: "Failed to fetch products" }, { status: 500 }), request);
   }
 };
 

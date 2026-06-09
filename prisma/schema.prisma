@@ -186,8 +186,8 @@ model ShopSettings {
   whatsappFromNumber     String?  // E.164 format e.g. "+911234567890"
 
   // Portal OTP verification settings
-  portalOtpEmailEnabled  Boolean  @default(false) // Require OTP for email-based lookups
-  portalOtpSmsEnabled    Boolean  @default(false) // Require OTP for phone-based lookups
+  portalOtpEmailEnabled  Boolean  @default(true) // Require OTP for email-based lookups
+  portalOtpSmsEnabled    Boolean  @default(true) // Locked-on legacy flag; phone OTP starts fail closed until delivery is implemented
 
   // Scheduled report emails
   scheduledReportEnabled   Boolean  @default(false)

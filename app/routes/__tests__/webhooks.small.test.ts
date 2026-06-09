@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateWebhookMock } = vi.hoisted(() => ({
+const { prismaMock, authenticateWebhookMock, webhookLoggerMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateWebhookMock: vi.fn(),
+  webhookLoggerMock: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 Object.assign(prismaMock, createPrismaMock());
 // Add extra models the webhook redact handlers use
@@ -19,6 +20,9 @@ for (const m of extraModels) {
 vi.mock("../../db.server", () => ({ default: prismaMock }));
 vi.mock("../../shopify.server", () => ({
   authenticate: { webhook: authenticateWebhookMock },
+}));
+vi.mock("../../lib/observability/logger.server", () => ({
+  webhookLogger: webhookLoggerMock,
 }));
 
 beforeEach(() => {
@@ -37,6 +41,10 @@ beforeEach(() => {
     });
   }
   authenticateWebhookMock.mockReset();
+  webhookLoggerMock.error.mockClear();
+  webhookLoggerMock.warn.mockClear();
+  webhookLoggerMock.info.mockClear();
+  webhookLoggerMock.debug.mockClear();
 });
 
 function mkReq() {
@@ -74,6 +82,14 @@ describe("webhooks.app.uninstalled", () => {
     prismaMock.session.deleteMany.mockRejectedValueOnce(new Error("db"));
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "APP_UNINSTALLED",
+        shop: "store.myshopify.com",
+        err: expect.objectContaining({ message: "db" }),
+      }),
+      "Failed to delete sessions",
+    );
   });
 });
 

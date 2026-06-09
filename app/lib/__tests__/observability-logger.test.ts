@@ -212,6 +212,8 @@ describe("named module loggers", () => {
       "notifLogger",
       "prismaLogger",
       "securityLogger",
+      "cronLogger",
+      "externalApiLogger",
       "appLogger",
     ] as const;
     for (const name of named) {

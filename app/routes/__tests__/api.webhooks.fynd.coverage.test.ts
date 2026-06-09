@@ -18,11 +18,13 @@ const {
   processFyndWebhookMock,
   unwrapFyndWebhookPayloadMock,
   authenticateWebhookMock,
+  webhookLoggerMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   processFyndWebhookMock: vi.fn(),
   unwrapFyndWebhookPayloadMock: vi.fn(),
   authenticateWebhookMock: vi.fn(),
+  webhookLoggerMock: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -33,6 +35,9 @@ vi.mock("../../lib/fynd-webhook.server", () => ({
 }));
 vi.mock("../../lib/fynd-webhook-verify.server", () => ({
   authenticateWebhook: authenticateWebhookMock,
+}));
+vi.mock("../../lib/observability/logger.server", () => ({
+  webhookLogger: webhookLoggerMock,
 }));
 
 import { loader, action } from "../api.webhooks.fynd";
@@ -61,6 +66,10 @@ beforeEach(() => {
     eventType: "shipment.updated",
   }));
   authenticateWebhookMock.mockReset().mockReturnValue({ ok: true });
+  webhookLoggerMock.error.mockClear();
+  webhookLoggerMock.warn.mockClear();
+  webhookLoggerMock.info.mockClear();
+  webhookLoggerMock.debug.mockClear();
 });
 
 afterEach(() => {
@@ -231,7 +240,6 @@ describe("shipment_status / status path coverage", () => {
 
 describe("dedup-check error path", () => {
   it("warns and proceeds when fyndWebhookLog.findFirst rejects", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     prismaMock.fyndWebhookLog.findFirst.mockRejectedValueOnce(new Error("connection reset"));
     processFyndWebhookMock.mockResolvedValueOnce({
       ok: true,
@@ -247,15 +255,16 @@ describe("dedup-check error path", () => {
 
     expect(res.status).toBe(200);
     expect(processFyndWebhookMock).toHaveBeenCalledOnce();
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("dedup check failed"),
-      expect.stringContaining("connection reset"),
+    expect(webhookLoggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        webhook: "fynd",
+        err: expect.objectContaining({ message: "connection reset" }),
+      }),
+      "Fynd webhook dedup check failed; proceeding without dedup",
     );
-    warnSpy.mockRestore();
   });
 
   it("warns and proceeds even with a non-Error thrown value", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     prismaMock.fyndWebhookLog.findFirst.mockRejectedValueOnce("string failure");
     processFyndWebhookMock.mockResolvedValueOnce({
       ok: true,
@@ -270,11 +279,10 @@ describe("dedup-check error path", () => {
     } as never);
 
     expect(res.status).toBe(200);
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("dedup check failed"),
-      "string failure",
+    expect(webhookLoggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ webhook: "fynd", err: "string failure" }),
+      "Fynd webhook dedup check failed; proceeding without dedup",
     );
-    warnSpy.mockRestore();
   });
 
   it("returns duplicate_ignored only when dedup query succeeds and finds a hit", async () => {

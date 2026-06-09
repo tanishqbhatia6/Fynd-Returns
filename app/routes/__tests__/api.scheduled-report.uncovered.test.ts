@@ -41,6 +41,7 @@ const origEnv = { ...process.env };
 
 function mkReq(headers: Record<string, string> = {}) {
   const h = new Headers();
+  h.set("x-cron-secret", "test-cron-secret");
   for (const [k, v] of Object.entries(headers)) h.set(k, v);
   return new Request("https://app.example/api/scheduled-report", { headers: h });
 }
@@ -68,6 +69,7 @@ function baseSetting(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   process.env = { ...origEnv };
+  process.env.CRON_SECRET = "test-cron-secret";
   resetPrismaMock(prismaMock);
   prismaMock.shopSettings.findMany.mockReset().mockResolvedValue([]);
   prismaMock.returnCase.count.mockReset().mockResolvedValue(0);

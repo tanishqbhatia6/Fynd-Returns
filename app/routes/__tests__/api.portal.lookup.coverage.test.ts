@@ -6,7 +6,7 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
  * api.portal.lookup — extra coverage for the OTP gate state machine.
  *
  * Complements the main test file by covering branches not exercised there:
- *   - SMS / phone OTP gate (counterpart to email-only coverage above).
+ *   - Phone OTP fail-closed gate (counterpart to email OTP coverage above).
  *   - Verified portalToken happy path that flows past the OTP gate to the
  *     full result payload (orders, returns, csrf token, matchedReturnIds
  *     persistence).
@@ -39,11 +39,13 @@ const {
   extractJourneyMock,
   getPickupAddressMock,
   createPortalCsrfTokenMock,
+  verifyPortalSessionMock,
+  hashLookupValueMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
   sendOtpEmailMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  fetchOrdersByFilterMock: vi.fn(async () => []),
+  fetchOrdersByFilterMock: vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () => []),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
   shopifyModuleMock: { unauthenticated: { admin: vi.fn() } },
@@ -52,6 +54,15 @@ const {
   extractJourneyMock: vi.fn(() => []),
   getPickupAddressMock: vi.fn(() => null),
   createPortalCsrfTokenMock: vi.fn(() => "test-csrf-token"),
+  verifyPortalSessionMock: vi.fn(async () => ({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "shopper@example.com",
+    matchedReturnIds: null,
+  })),
+  hashLookupValueMock: vi.fn<(value: unknown) => string>(() => "hash"),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -89,6 +100,8 @@ vi.mock("../../lib/portal-i18n", () => ({
 }));
 vi.mock("../../lib/portal-auth.server", () => ({
   createPortalCsrfToken: createPortalCsrfTokenMock,
+  verifyPortalSession: verifyPortalSessionMock,
+  hashLookupValue: hashLookupValueMock,
 }));
 
 import { action } from "../api.portal.lookup";
@@ -130,15 +143,24 @@ beforeEach(() => {
   extractJourneyMock.mockReset().mockReturnValue([]);
   getPickupAddressMock.mockReset().mockReturnValue(null);
   createPortalCsrfTokenMock.mockReset().mockReturnValue("test-csrf-token");
+  hashLookupValueMock
+    .mockReset()
+    .mockImplementation((value: unknown) => sha256Lower(String(value)));
+  verifyPortalSessionMock.mockReset().mockResolvedValue({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: sha256Lower("user@x.com"),
+    lookupValueNorm: "shopper@example.com",
+    matchedReturnIds: null,
+  });
 });
 
-// ───────────────────── SMS / phone OTP gate ─────────────────────
+// ───────────────────── Phone OTP gate ─────────────────────
 
 describe("OTP gate (phone / SMS channel)", () => {
-  it("creates a session when portalOtpSmsEnabled and lookupType=phone", async () => {
+  it("fails closed when phone OTP delivery is not configured", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpSmsEnabled: true }));
-    prismaMock.lookupSession.findMany.mockResolvedValueOnce([]);
-    prismaMock.lookupSession.create.mockResolvedValueOnce({ id: "sms-sess-1" });
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "phone", lookupValue: "+15551231234" }),
@@ -146,38 +168,27 @@ describe("OTP gate (phone / SMS channel)", () => {
       context: {},
     } as never);
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.requiresOtp).toBe(true);
-    expect(body.sessionId).toBe("sms-sess-1");
-    // mobile alias normalises to phone — but here lookupType is already "phone".
-    // Email helper is still called (route has no SMS sender wired in yet).
-    expect(prismaMock.lookupSession.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ lookupType: "phone" }),
-      }),
-    );
+    expect(body.phoneVerificationUnavailable).toBe(true);
+    expect(prismaMock.lookupSession.create).not.toHaveBeenCalled();
   });
 
-  it("normalises mobile → phone for OTP gate matching", async () => {
+  it("normalises mobile → phone and fails closed without phone OTP delivery", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpSmsEnabled: true }));
-    prismaMock.lookupSession.findMany.mockResolvedValueOnce([]);
-    prismaMock.lookupSession.create.mockResolvedValueOnce({ id: "sms-sess-2" });
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "mobile", lookupValue: "+15551239999" }),
       params: {},
       context: {},
     } as never);
-    expect(res.status).toBe(200);
-    expect(prismaMock.lookupSession.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ lookupType: "phone" }),
-      }),
-    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.phoneVerificationUnavailable).toBe(true);
+    expect(prismaMock.lookupSession.create).not.toHaveBeenCalled();
   });
 
-  it("does NOT gate email lookups when only SMS gate enabled", async () => {
+  it("gates email lookups by default even when only SMS was explicitly enabled", async () => {
     prismaMock.shop.findUnique.mockResolvedValue(
       baseShop({ portalOtpSmsEnabled: true, portalOtpEmailEnabled: false }),
     );
@@ -193,10 +204,9 @@ describe("OTP gate (phone / SMS channel)", () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    // Got results, NOT requiresOtp gating.
-    expect(body.requiresOtp).toBeUndefined();
-    expect(Array.isArray(body.returns)).toBe(true);
-    expect(prismaMock.lookupSession.create).not.toHaveBeenCalled();
+    expect(body.requiresOtp).toBe(true);
+    expect(body.sessionId).toBeTruthy();
+    expect(prismaMock.lookupSession.create).toHaveBeenCalled();
   });
 
   it("does NOT gate non-OTP lookup types (order_no) even with email gate on", async () => {
@@ -234,6 +244,9 @@ describe("OTP gate verified portalToken — happy path", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "sess-vp",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: sha256Lower("user@x.com"),
       expiresAt: new Date(Date.now() + 60_000),
       attemptsCount: 1,
       otpSentAt: new Date(Date.now() - 120_000),
@@ -263,10 +276,57 @@ describe("OTP gate verified portalToken — happy path", () => {
     expect(body.portalLanguage).toBe("en");
   });
 
+  it("rejects a verified portal token that does not match the requested contact", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
+    prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
+      id: "sess-vp",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: "other-contact-hash",
+      expiresAt: new Date(Date.now() + 60_000),
+      attemptsCount: 1,
+      otpSentAt: new Date(Date.now() - 120_000),
+      verifiedAt: new Date(),
+      portalToken: "valid-tok",
+    });
+    verifyPortalSessionMock.mockResolvedValueOnce({
+      id: "sess-vp",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: "other-contact-hash",
+      lookupValueNorm: "other@example.com",
+      matchedReturnIds: null,
+    });
+    fetchOrdersByFilterMock.mockResolvedValueOnce([
+      { id: "gid://shopify/Order/1", name: "#1001", createdAt: new Date().toISOString() },
+    ]);
+
+    const res = await action({
+      request: jsonReq({
+        shop: "store",
+        lookupType: "email",
+        lookupValue: "victim@example.com",
+        sessionId: "sess-vp",
+        portalToken: "valid-tok",
+      }),
+      params: {},
+      context: {},
+    } as never);
+
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.requiresOtp).toBe(true);
+    expect(fetchOrdersByFilterMock).not.toHaveBeenCalled();
+    expect(prismaMock.returnCase.findMany).not.toHaveBeenCalled();
+  });
+
   it("persists matchedReturnIds back to the session after success", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "sess-mr",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: sha256Lower("user@x.com"),
       expiresAt: new Date(Date.now() + 60_000),
       attemptsCount: 1,
       otpSentAt: new Date(Date.now() - 120_000),
@@ -304,6 +364,9 @@ describe("OTP gate verified portalToken — happy path", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "sess-mr",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: sha256Lower("user@x.com"),
       expiresAt: new Date(Date.now() + 60_000),
       attemptsCount: 1,
       otpSentAt: new Date(Date.now() - 120_000),
@@ -497,6 +560,9 @@ describe("existing-session resend edge cases", () => {
     // findUnique returns a session that has reached the per-session attempt cap.
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "maxed",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: sha256Lower("u@x.com"),
       expiresAt: new Date(Date.now() + 60_000),
       attemptsCount: 5, // === MAX_OTP_ATTEMPTS — falls through past the resend block
       otpSentAt: new Date(Date.now() - 120_000),
@@ -528,6 +594,9 @@ describe("existing-session resend edge cases", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "expired",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: sha256Lower("u@x.com"),
       expiresAt: new Date(Date.now() - 1_000), // already expired
       attemptsCount: 1,
       otpSentAt: new Date(Date.now() - 10_000),
@@ -556,6 +625,9 @@ describe("existing-session resend edge cases", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "no-sent",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: sha256Lower("u@x.com"),
       expiresAt: new Date(Date.now() + 60_000),
       attemptsCount: 1,
       otpSentAt: null, // unset → cooldown=0
@@ -584,6 +656,37 @@ describe("existing-session resend edge cases", () => {
       }),
     );
   });
+
+  it("does not reuse a sessionId for a different contact lookup value", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
+    prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
+      id: "mismatched-session",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: "other-contact-hash",
+      expiresAt: new Date(Date.now() + 60_000),
+      attemptsCount: 1,
+      otpSentAt: new Date(Date.now() - 120_000),
+    });
+    prismaMock.lookupSession.findMany.mockResolvedValueOnce([]);
+    prismaMock.lookupSession.create.mockResolvedValueOnce({ id: "fresh-for-contact" });
+
+    const res = await action({
+      request: jsonReq({
+        shop: "store",
+        lookupType: "email",
+        lookupValue: "u@x.com",
+        sessionId: "mismatched-session",
+      }),
+      params: {},
+      context: {},
+    } as never);
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.sessionId).toBe("fresh-for-contact");
+    expect(prismaMock.lookupSession.update).not.toHaveBeenCalled();
+  });
 });
 
 // ───────────────────── send-OTP failure handling ─────────────────────
@@ -611,6 +714,9 @@ describe("send-OTP failure handling", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "resend-fail",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: sha256Lower("u@x.com"),
       expiresAt: new Date(Date.now() + 60_000),
       attemptsCount: 1,
       otpSentAt: new Date(Date.now() - 120_000),

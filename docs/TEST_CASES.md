@@ -839,7 +839,7 @@ Comprehensive test suite covering every flow between **Fynd**, **Shopify**, **Re
 | 19.1.3 | Send OTP — too many attempts | `attemptsCount >= 5` | 429 — Too many attempts |
 | 19.1.4 | Send OTP — cooldown active | OTP sent < 60s ago | 429 — Wait before resending |
 | 19.1.5 | Send OTP — invalid session ID | Non-existent session | 400 — Session not found |
-| 19.1.6 | Send OTP — non-email target | Phone number as target | OTP logged (dev mode), no email sent |
+| 19.1.6 | Send OTP — non-email target | Phone number as target | 400 — Phone verification unavailable, no OTP generated |
 
 ### 19.2 OTP Verify
 

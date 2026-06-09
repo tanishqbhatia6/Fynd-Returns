@@ -7,6 +7,7 @@ import { parsePortalTheme, applyPortalThemeToHtml } from "../lib/portal-theme.se
 import { parsePortalConfig } from "../lib/portal-config.server";
 import { getPortalLabels } from "../lib/portal-i18n";
 import { createPortalCsrfToken } from "../lib/portal-auth.server";
+import { portalLogger } from "../lib/observability/logger.server";
 
 let cachedTemplate: string | null = null;
 
@@ -114,7 +115,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         (shop.settings as { channelPoliciesJson?: string | null }).channelPoliciesJson ?? "{}";
     }
   } catch (err) {
-    console.error("Portal theme load error:", err);
+    portalLogger.error({ err, shopDomain }, "Portal theme load failed");
   }
 
   const portalConfig = parsePortalConfig(portalConfigJson);

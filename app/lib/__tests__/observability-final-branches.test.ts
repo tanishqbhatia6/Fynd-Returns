@@ -206,6 +206,34 @@ describe("logger.server.ts — final branches", () => {
     expect(opts.level).toBe("warn");
   });
 
+  it("redacts customer PII, raw payloads, and auth headers by default", async () => {
+    await import("../observability/logger.server");
+    const opts = pinoCalls[0].options as {
+      redact: { paths: string[]; censor: string };
+    };
+    expect(opts.redact.censor).toBe("[REDACTED]");
+    expect(opts.redact.paths).toEqual(
+      expect.arrayContaining([
+        "authorization",
+        "cookie",
+        "headers.authorization",
+        "req.headers.authorization",
+        "email",
+        "phone",
+        "customerEmailNorm",
+        "shippingAddress",
+        "address1",
+        "zip",
+        "*.email",
+        "*.shippingAddress",
+        "*.rawPayload",
+        "rawPayload",
+        "fyndPayloadJson",
+        "portalToken",
+      ]),
+    );
+  });
+
   it("req serializer handles missing url and missing headers gracefully", async () => {
     await import("../observability/logger.server");
     const opts = pinoCalls[0].options as {

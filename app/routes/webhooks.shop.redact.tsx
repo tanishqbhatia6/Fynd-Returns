@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { webhookLogger } from "../lib/observability/logger.server";
 
 /**
  * GDPR: shop/redact
@@ -16,14 +17,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     authed = await authenticate.webhook(request);
   } catch (err) {
     if (err instanceof Response) throw err;
-    console.error("[webhook:shop/redact] authenticate failed", {
-      error: err instanceof Error ? err.message : String(err),
-    });
+    webhookLogger.error({ topic: "SHOP_REDACT", err }, "Shop redact webhook authentication failed");
     return new Response();
   }
   const { shop, payload } = authed;
 
-  console.log(`[webhooks.shop.redact] shop=${shop} shopId=${payload.shop_id}`);
+  webhookLogger.info(
+    { topic: "SHOP_REDACT", shop, hasShopId: Boolean(payload.shop_id) },
+    "Shopify shop redact webhook received",
+  );
 
   try {
     const shopRecord = await prisma.shop.findUnique({
@@ -31,7 +33,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     if (!shopRecord) {
-      console.log(`[webhooks.shop.redact] Shop not found: ${shop}, nothing to redact`);
+      webhookLogger.info({ topic: "SHOP_REDACT", shop }, "Shop not found for shop redact");
       return new Response();
     }
 
@@ -93,9 +95,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       where: { id: shopRecord.id },
     });
 
-    console.log(`[webhooks.shop.redact] Successfully deleted all data for shop=${shop}`);
+    webhookLogger.info(
+      { topic: "SHOP_REDACT", shop, returnCaseCount: returnCases.length },
+      "Shopify shop redact completed",
+    );
   } catch (err) {
-    console.error("[webhooks.shop.redact] Error processing shop redaction:", err);
+    webhookLogger.error({ topic: "SHOP_REDACT", shop, err }, "Shop redact failed");
   }
 
   return new Response();

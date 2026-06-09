@@ -1,26 +1,38 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, verifyPortalTokenMock, getPortalLabelsMock, extractJourneyMock } = vi.hoisted(
-  () => ({
-    prismaMock: {} as ReturnType<typeof createPrismaMock>,
-    verifyPortalTokenMock: vi.fn(),
-    getPortalLabelsMock: vi.fn(() => ({ heading: "Your Returns" })),
-    extractJourneyMock: vi.fn(() => [{ status: "return_initiated" }]),
-  }),
-);
+const {
+  prismaMock,
+  verifyPortalSessionMock,
+  checkRateLimitMock,
+  rateLimitResponseMock,
+  getPortalLabelsMock,
+  extractJourneyMock,
+} = vi.hoisted(() => ({
+  prismaMock: {} as ReturnType<typeof createPrismaMock>,
+  verifyPortalSessionMock: vi.fn(),
+  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
+  rateLimitResponseMock: vi.fn(() => Response.json({ error: "rate-limited" }, { status: 429 })),
+  getPortalLabelsMock: vi.fn(() => ({ heading: "Your Returns" })),
+  extractJourneyMock: vi.fn(() => [{ status: "return_initiated" }]),
+}));
 
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
 
 vi.mock("../../lib/portal-auth.server", () => ({
-  verifyPortalToken: verifyPortalTokenMock,
+  verifyPortalSession: verifyPortalSessionMock,
 }));
 
 vi.mock("../../lib/portal-cors.server", () => ({
   getPortalCorsHeaders: () => new Headers(),
   withCors: (res: Response) => res,
+}));
+
+vi.mock("../../lib/rate-limit.server", () => ({
+  checkRateLimit: checkRateLimitMock,
+  rateLimitResponse: rateLimitResponseMock,
 }));
 
 vi.mock("../../lib/portal-i18n", () => ({
@@ -42,8 +54,13 @@ function mkRequest(opts: { auth?: string; method?: string } = {}) {
   });
 }
 
-function mkSession(matchedReturnIds: string) {
+function mkSession(matchedReturnIds: string | null, shopId = "shop-A") {
   return {
+    id: "s1",
+    shopId,
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "user@example.com",
     verifiedAt: new Date(),
     expiresAt: new Date(Date.now() + 60_000),
     matchedReturnIds,
@@ -52,16 +69,21 @@ function mkSession(matchedReturnIds: string) {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  verifyPortalTokenMock.mockReset();
+  verifyPortalSessionMock.mockReset().mockResolvedValue(mkSession("[]"));
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  rateLimitResponseMock
+    .mockReset()
+    .mockReturnValue(Response.json({ error: "rate-limited" }, { status: 429 }));
   getPortalLabelsMock.mockClear();
   extractJourneyMock.mockClear();
 });
 
 describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
   it("scopes findMany to ids in matchedReturnIds AND payload.shopId", async () => {
-    verifyPortalTokenMock.mockReturnValue({ sessionId: "s1", shopId: "shop-A" });
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(
-      mkSession(JSON.stringify(["rc-1", "rc-2", "rc-3"])),
+    verifyPortalSessionMock.mockResolvedValueOnce(
+      mkSession(JSON.stringify(["rc-1", "rc-2", "rc-3"]), "shop-A"),
     );
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ portalLanguage: "en" });
@@ -72,13 +94,20 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
     const arg = prismaMock.returnCase.findMany.mock.calls[0][0];
     expect(arg.where).toEqual({ id: { in: ["rc-1", "rc-2", "rc-3"] }, shopId: "shop-A" });
     expect(arg.orderBy).toEqual({ createdAt: "desc" });
-    expect(arg.include.items).toBe(true);
-    expect(arg.include.events).toEqual({ orderBy: { happenedAt: "desc" }, take: 10 });
+    expect(arg.select.items.select.id).toBe(true);
+    expect(arg.select.events).toEqual({
+      orderBy: { happenedAt: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        eventType: true,
+        happenedAt: true,
+      },
+    });
   });
 
   it("does not call findMany when matchedReturnIds is empty array", async () => {
-    verifyPortalTokenMock.mockReturnValue({ sessionId: "s1", shopId: "shop-A" });
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession("[]"));
+    verifyPortalSessionMock.mockResolvedValueOnce(mkSession("[]", "shop-A"));
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ portalLanguage: "en" });
 
     const res = await loader({
@@ -93,12 +122,7 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
   });
 
   it("does not call findMany when matchedReturnIds is null/undefined (treated as '[]')", async () => {
-    verifyPortalTokenMock.mockReturnValue({ sessionId: "s1", shopId: "shop-A" });
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
-      verifiedAt: new Date(),
-      expiresAt: new Date(Date.now() + 60_000),
-      matchedReturnIds: null,
-    });
+    verifyPortalSessionMock.mockResolvedValueOnce(mkSession(null, "shop-A"));
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ portalLanguage: "en" });
 
     const res = await loader({
@@ -112,8 +136,7 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
   });
 
   it("does not call findMany when matchedReturnIds JSON is malformed", async () => {
-    verifyPortalTokenMock.mockReturnValue({ sessionId: "s1", shopId: "shop-A" });
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession("not-json"));
+    verifyPortalSessionMock.mockResolvedValueOnce(mkSession("not-json", "shop-A"));
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ portalLanguage: "en" });
 
     const res = await loader({
@@ -128,8 +151,9 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
   });
 
   it("uses payload.shopId — not the session's — to scope returns (cross-shop guard)", async () => {
-    verifyPortalTokenMock.mockReturnValue({ sessionId: "s1", shopId: "shop-FROM-TOKEN" });
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession(JSON.stringify(["rc-9"])));
+    verifyPortalSessionMock.mockResolvedValueOnce(
+      mkSession(JSON.stringify(["rc-9"]), "shop-FROM-TOKEN"),
+    );
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ portalLanguage: "en" });
 
@@ -139,15 +163,14 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
     expect(arg.where.shopId).toBe("shop-FROM-TOKEN");
   });
 
-  it("looks up the session by payload.sessionId", async () => {
-    verifyPortalTokenMock.mockReturnValue({ sessionId: "session-XYZ", shopId: "shop-A" });
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession("[]"));
+  it("verifies the bearer token through the portal session helper", async () => {
+    verifyPortalSessionMock.mockResolvedValueOnce(mkSession("[]", "shop-A"));
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ portalLanguage: "en" });
 
     await loader({ request: mkRequest({ auth: "Bearer t" }), params: {}, context: {} } as never);
 
-    expect(prismaMock.lookupSession.findUnique).toHaveBeenCalledWith({
-      where: { id: "session-XYZ" },
+    expect(verifyPortalSessionMock).toHaveBeenCalledWith(prismaMock, {
+      portalToken: "t",
     });
   });
 
@@ -155,8 +178,7 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
     // Even if Prisma mock would return extra rows, the route trusts findMany
     // results; what we assert is the WHERE clause restricts to the exact ids
     // the verified session matched.
-    verifyPortalTokenMock.mockReturnValue({ sessionId: "s1", shopId: "shop-A" });
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession(JSON.stringify(["rc-1"])));
+    verifyPortalSessionMock.mockResolvedValueOnce(mkSession(JSON.stringify(["rc-1"]), "shop-A"));
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
         id: "rc-1",
@@ -182,9 +204,8 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
   });
 
   it("strips fyndPayloadJson from every returned record", async () => {
-    verifyPortalTokenMock.mockReturnValue({ sessionId: "s1", shopId: "shop-A" });
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(
-      mkSession(JSON.stringify(["rc-1", "rc-2"])),
+    verifyPortalSessionMock.mockResolvedValueOnce(
+      mkSession(JSON.stringify(["rc-1", "rc-2"]), "shop-A"),
     );
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
@@ -220,9 +241,8 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
   });
 
   it("preserves matchedReturnIds order in the WHERE 'in' clause", async () => {
-    verifyPortalTokenMock.mockReturnValue({ sessionId: "s1", shopId: "shop-A" });
     const ids = ["rc-3", "rc-1", "rc-2"];
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession(JSON.stringify(ids)));
+    verifyPortalSessionMock.mockResolvedValueOnce(mkSession(JSON.stringify(ids), "shop-A"));
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ portalLanguage: "en" });
 
@@ -232,8 +252,7 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
   });
 
   it("returns approved status with returnLabel parsed from returnLabelJson", async () => {
-    verifyPortalTokenMock.mockReturnValue({ sessionId: "s1", shopId: "shop-A" });
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession(JSON.stringify(["rc-1"])));
+    verifyPortalSessionMock.mockResolvedValueOnce(mkSession(JSON.stringify(["rc-1"]), "shop-A"));
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
         id: "rc-1",
@@ -266,8 +285,7 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
   });
 
   it("recovers when returnLabelJson is malformed (returnLabel = null)", async () => {
-    verifyPortalTokenMock.mockReturnValue({ sessionId: "s1", shopId: "shop-A" });
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession(JSON.stringify(["rc-1"])));
+    verifyPortalSessionMock.mockResolvedValueOnce(mkSession(JSON.stringify(["rc-1"]), "shop-A"));
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
         id: "rc-1",
@@ -292,8 +310,7 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
   });
 
   it("falls back to 'en' when shopSettings is missing", async () => {
-    verifyPortalTokenMock.mockReturnValue({ sessionId: "s1", shopId: "shop-A" });
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession("[]"));
+    verifyPortalSessionMock.mockResolvedValueOnce(mkSession("[]", "shop-A"));
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce(null);
 
     const res = await loader({

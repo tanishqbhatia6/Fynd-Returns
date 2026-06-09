@@ -3,6 +3,7 @@ import shopifyApp, { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { markExchangeDeliveredForOrder } from "../lib/exchange-completion.server";
 import { extractAffiliateOrderId } from "../lib/shopify-admin.server";
+import { webhookLogger } from "../lib/observability/logger.server";
 
 /**
  * Shopify orders/fulfilled webhook handler.
@@ -33,10 +34,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (err) {
     if (err instanceof Response) throw err;
     /* v8 ignore start - defensive Error narrowing in authenticate failure path */
-    console.error("[webhook:orders/fulfilled] authenticate failed", {
-      error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-    });
+    webhookLogger.error(
+      { topic: "ORDERS_FULFILLED", err },
+      "Order fulfilled webhook authentication failed",
+    );
     return new Response();
     /* v8 ignore stop */
   }
@@ -96,12 +97,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           });
         } catch (err) {
           /* v8 ignore start - defensive Error narrowing in catch */
-          console.error("[webhook:orders/fulfilled] metafield write failed", {
-            shop,
-            orderName: orderNameClean,
-            fyndOrderId,
-            error: err instanceof Error ? err.message : String(err),
-          });
+          webhookLogger.error(
+            { topic: "ORDERS_FULFILLED", shop, orderName: orderNameClean, fyndOrderId, err },
+            "Order fulfilled metafield write failed",
+          );
           /* v8 ignore stop */
         }
       }
@@ -127,12 +126,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         /* v8 ignore stop */
       } catch (err) {
         /* v8 ignore start - defensive Error narrowing in catch */
-        console.error("[webhook:orders/fulfilled] mapping upsert failed", {
-          shop,
-          orderName: orderNameClean,
-          fyndOrderId,
-          error: err instanceof Error ? err.message : String(err),
-        });
+        webhookLogger.error(
+          { topic: "ORDERS_FULFILLED", shop, orderName: orderNameClean, fyndOrderId, err },
+          "Order fulfilled mapping upsert failed",
+        );
         /* v8 ignore stop */
       }
     }
@@ -176,10 +173,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   } catch (err) {
     /* v8 ignore start - defensive Error narrowing in outer catch */
-    console.error("[webhook:orders/fulfilled]", {
-      error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-    });
+    webhookLogger.error({ topic: "ORDERS_FULFILLED", shop, err }, "Order fulfilled webhook failed");
     /* v8 ignore stop */
   }
 

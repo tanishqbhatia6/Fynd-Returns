@@ -103,8 +103,8 @@ Served via Shopify App Proxy at `/apps/returns`.
 - **Track Order** — Real-time Fynd shipment tracking
 
 ### Return Creation Flow
-1. Enter order number and email/phone
-2. OTP verification (email or SMS)
+1. Enter order number and email
+2. OTP verification by email
 3. Select items to return with reason codes
 4. Upload photos (if required by policy)
 5. View return fee (if applicable)

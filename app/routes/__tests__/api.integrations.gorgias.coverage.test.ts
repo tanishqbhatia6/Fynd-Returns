@@ -8,7 +8,7 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
 const { prismaMock, decryptMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  decryptMock: vi.fn((v: string) => v),
+  decryptMock: vi.fn((v: string) => (v ?? "").replace(/^enc:/, "")),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -20,14 +20,18 @@ vi.mock("../../lib/encryption.server", () => ({
 import { loader } from "../api.integrations.gorgias";
 
 function mkReq(qs: string, headers: Record<string, string> = {}) {
-  return new Request(`https://app.example/api/integrations/gorgias?${qs}`, {
+  const hasApiKey =
+    /(?:^|&)api_key=/.test(qs) ||
+    Object.keys(headers).some((key) => key.toLowerCase() === "x-gorgias-api-key");
+  const finalQs = qs && !hasApiKey ? `${qs}&api_key=secret` : qs;
+  return new Request(`https://app.example/api/integrations/gorgias?${finalQs}`, {
     headers,
   });
 }
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  decryptMock.mockReset().mockImplementation((v: string) => v);
+  decryptMock.mockReset().mockImplementation((v: string) => (v ?? "").replace(/^enc:/, ""));
 });
 
 describe("Gorgias widget — HTML generation & sanitization coverage", () => {
@@ -44,7 +48,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
   it("renders subtitle 'Customer:' line using the customerName when present", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
@@ -71,10 +75,46 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     expect(html).not.toContain("Customer: alice@example.com");
   });
 
+  it("escapes dynamic customer, order, request, and item values before rendering HTML", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
+    });
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([
+      {
+        id: 'rc-"><script>',
+        returnRequestNo: '<img src=x onerror="alert(1)">',
+        shopifyOrderName: '#1001"><script>alert(1)</script>',
+        status: "approved",
+        resolutionType: 'store_credit"><script>',
+        createdAt: new Date("2025-02-01"),
+        customerName: '<b onclick="x">Alice</b>',
+        isGiftReturn: false,
+        fraudRiskLevel: null,
+        fraudRiskScore: null,
+        items: [{ title: '<script>alert("x")</script>', qty: 1 }],
+      },
+    ]);
+
+    const res = await loader({
+      request: mkReq("shop=x&email=alice@example.com"),
+      params: {},
+      context: {},
+    } as never);
+    const html = await res.text();
+
+    expect(html).toContain("&lt;b onclick=&quot;x&quot;&gt;Alice&lt;/b&gt;");
+    expect(html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
+    expect(html).toContain("#1001&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(html).toContain("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;");
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain("<img src=x");
+  });
+
   it("falls back to email in subtitle when customerName is null", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
@@ -104,7 +144,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
   it("normalizes email to lowercase + trimmed when querying", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     await loader({
@@ -139,7 +179,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
   it("renders status badge color for 'pending' (amber bg)", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
@@ -167,7 +207,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
   it("renders status badge color for 'rejected' (red bg)", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
@@ -194,7 +234,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
   it("uses default neutral color for unknown status values", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
@@ -222,7 +262,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
   it("does not render risk badge when fraudRiskLevel is 'low'", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
@@ -249,7 +289,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
   it("renders critical risk badge with red color scheme", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
@@ -276,7 +316,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
   it("renders medium risk badge with amber color", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
@@ -303,7 +343,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
   it("falls back to id slice (8 chars) when returnRequestNo is null", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
@@ -330,7 +370,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
   it("renders 'No items' label when items array is empty", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
@@ -356,7 +396,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
   it("replaces underscores in resolutionType with spaces (e.g. 'store_credit' → 'store credit')", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
@@ -386,7 +426,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     try {
       prismaMock.shop.findUnique.mockResolvedValueOnce({
         id: "shop-1",
-        settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+        settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
       });
       prismaMock.returnCase.findMany.mockResolvedValueOnce([
         {
@@ -420,7 +460,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     try {
       prismaMock.shop.findUnique.mockResolvedValueOnce({
         id: "shop-1",
-        settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+        settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
       });
       prismaMock.returnCase.findMany.mockResolvedValueOnce([
         {
@@ -449,7 +489,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
   it("renders multiple items joined by comma", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
@@ -479,7 +519,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
   it("returns 'Returns (N)' header reflecting the actual array length (cap @ take=10)", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     const cases = Array.from({ length: 3 }, (_, i) => ({
       id: `rc-${i}`,
@@ -512,7 +552,7 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     });
     decryptMock.mockImplementationOnce(() => "secret");
     const res = await loader({
-      request: mkReq("shop=x&email=a@b.com"),
+      request: new Request("https://app.example/api/integrations/gorgias?shop=x&email=a@b.com"),
       params: {},
       context: {},
     } as never);

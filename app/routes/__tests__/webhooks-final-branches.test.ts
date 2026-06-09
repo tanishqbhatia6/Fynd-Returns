@@ -31,6 +31,7 @@ const {
   authenticateFyndWebhookMock,
   readBoundedBodyMock,
   decryptMock,
+  webhookLoggerMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateWebhookMock: vi.fn(),
@@ -40,6 +41,7 @@ const {
   authenticateFyndWebhookMock: vi.fn(),
   readBoundedBodyMock: vi.fn(),
   decryptMock: vi.fn(),
+  webhookLoggerMock: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -60,6 +62,9 @@ vi.mock("../../lib/fynd-webhook-verify.server", () => ({
 }));
 vi.mock("../../lib/encryption.server", () => ({
   decryptIfEncrypted: decryptMock,
+}));
+vi.mock("../../lib/observability/logger.server", () => ({
+  webhookLogger: webhookLoggerMock,
 }));
 
 import { action as fyndAction } from "../api.webhooks.fynd";
@@ -102,6 +107,10 @@ beforeEach(() => {
   decryptMock
     .mockReset()
     .mockImplementation((v: unknown) => (typeof v === "string" ? v.replace(/^enc:/, "") : null));
+  webhookLoggerMock.error.mockClear();
+  webhookLoggerMock.warn.mockClear();
+  webhookLoggerMock.info.mockClear();
+  webhookLoggerMock.debug.mockClear();
 });
 
 afterEach(() => {
@@ -444,7 +453,6 @@ describe("webhooks.shop.redact — final branches", () => {
   });
 
   it("auth threw a non-Error value → String(err) fallback used (line 20 false branch)", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     authenticateWebhookMock.mockImplementationOnce(() => {
       throw "auth-string-error";
     });
@@ -454,11 +462,10 @@ describe("webhooks.shop.redact — final branches", () => {
       context: {},
     } as never);
     expect(res.status).toBe(200);
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.stringContaining("authenticate failed"),
-      expect.objectContaining({ error: "auth-string-error" }),
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({ topic: "SHOP_REDACT", err: "auth-string-error" }),
+      "Shop redact webhook authentication failed",
     );
-    errSpy.mockRestore();
   });
 });
 

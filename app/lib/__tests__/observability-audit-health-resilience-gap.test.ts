@@ -52,6 +52,7 @@ describe("observability/resilience.server — uncovered branches", () => {
       circuitBreakerRejected: { add: vi.fn() },
       externalTimeoutCounter: { add: vi.fn() },
       fallbackActivated: { add: vi.fn() },
+      redisHealthStatus: { addCallback: vi.fn() },
     }));
   });
 
@@ -148,6 +149,7 @@ describe("observability/health.server — runReadinessChecks rejected branches",
           }
         }),
       },
+      redisHealthStatus: { addCallback: vi.fn() },
     }));
     vi.doMock("../observability/resilience.server", () => ({
       getAllCircuitBreakerStatuses: vi.fn(() => []),
@@ -188,6 +190,7 @@ describe("observability/health.server — runReadinessChecks rejected branches",
           }
         }),
       },
+      redisHealthStatus: { addCallback: vi.fn() },
     }));
     vi.doMock("../observability/resilience.server", () => ({
       getAllCircuitBreakerStatuses: vi.fn(() => []),
@@ -220,6 +223,7 @@ describe("observability/health.server — checkFyndApi abort timer fires", () =>
     vi.resetModules();
     vi.doMock("../observability/metrics.server", () => ({
       healthCheckDuration: { record: vi.fn() },
+      redisHealthStatus: { addCallback: vi.fn() },
     }));
     vi.doMock("../observability/resilience.server", () => ({
       getAllCircuitBreakerStatuses: vi.fn(() => []),

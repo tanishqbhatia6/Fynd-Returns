@@ -15,6 +15,19 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+const { securityLoggerMock } = vi.hoisted(() => ({
+  securityLoggerMock: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+vi.mock("../observability/logger.server", () => ({
+  securityLogger: securityLoggerMock,
+}));
+
 const ORIG_ENV = { ...process.env };
 
 beforeEach(() => {
@@ -26,22 +39,20 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  securityLoggerMock.debug.mockClear();
+  securityLoggerMock.info.mockClear();
+  securityLoggerMock.warn.mockClear();
+  securityLoggerMock.error.mockClear();
   process.env = { ...ORIG_ENV };
 });
 
 describe("rate-limit gap — production warning at module load", () => {
-  it("warns when NODE_ENV=production, WEB_CONCURRENCY>1, and REDIS_URL is unset", async () => {
+  it("throws when NODE_ENV=production and REDIS_URL is unset", async () => {
     process.env.NODE_ENV = "production";
     process.env.WEB_CONCURRENCY = "4";
     delete process.env.REDIS_URL;
 
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await import("../rate-limit.server");
-
-    const messages = warn.mock.calls.map((c) => String(c[0] ?? ""));
-    const hit = messages.find((m) => m.includes("[rate-limit]"));
-    expect(hit).toBeDefined();
-    expect(hit).toContain("WEB_CONCURRENCY>1");
+    await expect(import("../rate-limit.server")).rejects.toThrow(/REDIS_URL is required/);
   });
 
   it("does not warn when REDIS_URL is set in production", async () => {
@@ -56,16 +67,12 @@ describe("rate-limit gap — production warning at module load", () => {
     expect(messages.find((m) => m.includes("[rate-limit]"))).toBeUndefined();
   });
 
-  it("does not warn when WEB_CONCURRENCY is unset (defaults to 1)", async () => {
+  it("still throws when WEB_CONCURRENCY is unset because Redis is mandatory in production", async () => {
     process.env.NODE_ENV = "production";
     delete process.env.WEB_CONCURRENCY;
     delete process.env.REDIS_URL;
 
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await import("../rate-limit.server");
-
-    const messages = warn.mock.calls.map((c) => String(c[0] ?? ""));
-    expect(messages.find((m) => m.includes("[rate-limit]"))).toBeUndefined();
+    await expect(import("../rate-limit.server")).rejects.toThrow(/REDIS_URL is required/);
   });
 
   it("does not warn when NODE_ENV is not production", async () => {
@@ -246,13 +253,10 @@ describe("rate-limit gap — Redis path edge branches", () => {
     mod.__resetRateLimitForTests();
   });
 
-  it("logs the raw value when Redis EVAL throws a non-Error payload", async () => {
-    // The catch block stringifies non-Error throws via the alternate branch
-    // of `err instanceof Error ? err.message : err` (line 151).
+  it("logs Redis EVAL failures through the security logger", async () => {
     const fakeRedis = {
       eval: vi.fn().mockRejectedValue("string-rejection"),
     };
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const mod = await import("../rate-limit.server");
     const redisMod = await import("../redis.server");
@@ -267,13 +271,10 @@ describe("rate-limit gap — Redis path edge branches", () => {
     // Falls back to in-memory and allows the request.
     expect(r.allowed).toBe(true);
 
-    // The first warn call (rate-limit module's "Redis unavailable" message)
-    // must include the non-Error payload as its second arg.
-    const rlCall = warn.mock.calls.find((c) =>
-      String(c[0] ?? "").includes("[rate-limit] Redis unavailable"),
+    expect(securityLoggerMock.warn).toHaveBeenCalledWith(
+      { err: "string-rejection" },
+      "Rate limiter Redis unavailable on this request; falling back to in-memory",
     );
-    expect(rlCall).toBeDefined();
-    expect(rlCall![1]).toBe("string-rejection");
 
     redisMod.__setRedisForTests(null);
     mod.__resetRateLimitForTests();

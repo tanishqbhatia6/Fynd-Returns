@@ -19,6 +19,7 @@ const {
   prismaMock,
   // otp
   createPortalTokenMock,
+  verifyPortalSessionMock,
   // shared rate-limit
   checkRateLimitMock,
   // fynd-enrich
@@ -36,6 +37,7 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   createPortalTokenMock: vi.fn(() => "jwt-token"),
+  verifyPortalSessionMock: vi.fn(),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
   createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
     ok: false,
@@ -71,6 +73,7 @@ vi.mock("../../lib/rate-limit.server", () => ({
 }));
 vi.mock("../../lib/portal-auth.server", () => ({
   createPortalToken: createPortalTokenMock,
+  verifyPortalSession: verifyPortalSessionMock,
 }));
 
 // ── fynd-enrich deps
@@ -147,6 +150,7 @@ vi.mock("../../lib/observability/metrics.server", () => ({
   returnsRejectedCounter: { add: vi.fn() },
   returnsCompletedCounter: { add: vi.fn() },
   appErrorCounter: { add: vi.fn() },
+  portalOtpCounter: { add: vi.fn() },
 }));
 vi.mock("../../lib/observability/audit.server", () => ({
   auditReturnAction: vi.fn(),
@@ -181,6 +185,14 @@ beforeEach(() => {
   const upsert = getMappingUpsertMock();
   upsert.mockReset().mockResolvedValue({});
   createPortalTokenMock.mockClear();
+  verifyPortalSessionMock.mockReset().mockResolvedValue({
+    id: "lookup-session",
+    shopId: "shop-1",
+    lookupType: "order_no",
+    lookupValueHash: "hash",
+    lookupValueNorm: "1001",
+    matchedReturnIds: JSON.stringify(["r-1"]),
+  });
   checkRateLimitMock
     .mockReset()
     .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });

@@ -72,6 +72,15 @@ vi.mock("../../lib/portal-i18n", () => ({
 }));
 vi.mock("../../lib/portal-auth.server", () => ({
   createPortalCsrfToken: () => "test-csrf-token",
+  verifyPortalSession: vi.fn(async () => ({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "shopper@example.com",
+    matchedReturnIds: null,
+  })),
+  hashLookupValue: vi.fn(() => "hash"),
 }));
 
 import { loader, action } from "../api.portal.lookup";
@@ -239,6 +248,9 @@ describe("OTP gate (email)", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "sess-1",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: "hash",
       expiresAt: new Date(Date.now() + 60000),
       attemptsCount: 1,
       otpSentAt: new Date(Date.now() - 5000), // 5s ago, within 60s cooldown
@@ -262,6 +274,9 @@ describe("OTP gate (email)", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "sess-1",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: "hash",
       expiresAt: new Date(Date.now() + 60000),
       attemptsCount: 1,
       otpSentAt: new Date(Date.now() - 120_000), // 2min ago, past cooldown
@@ -308,6 +323,9 @@ describe("OTP gate (email)", () => {
     // Existing session found on the first branch, past cooldown so reissues new OTP
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "sess-1",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: "hash",
       expiresAt: new Date(Date.now() + 60_000),
       attemptsCount: 1,
       otpSentAt: new Date(Date.now() - 120_000),
@@ -464,8 +482,24 @@ describe("lookup dispatch (no OTP required)", () => {
   });
 
   it("phone type strips non-digits from the query", async () => {
+    prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
+      id: "sess-verified",
+      shopId: "shop-1",
+      lookupType: "phone",
+      lookupValueHash: "hash",
+      expiresAt: new Date(Date.now() + 60_000),
+      attemptsCount: 1,
+      verifiedAt: new Date(),
+      portalToken: "tok-verified",
+    });
     await action({
-      request: jsonReq({ shop: "store", lookupType: "phone", lookupValue: "+1 (415) 555-1212" }),
+      request: jsonReq({
+        shop: "store",
+        lookupType: "phone",
+        lookupValue: "+1 (415) 555-1212",
+        sessionId: "sess-verified",
+        portalToken: "tok-verified",
+      }),
       params: {},
       context: {},
     } as never);
@@ -477,8 +511,24 @@ describe("lookup dispatch (no OTP required)", () => {
   });
 
   it("email lookup queries both email + phone norm fields", async () => {
+    prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
+      id: "sess-verified",
+      shopId: "shop-1",
+      lookupType: "email",
+      lookupValueHash: "hash",
+      expiresAt: new Date(Date.now() + 60_000),
+      attemptsCount: 1,
+      verifiedAt: new Date(),
+      portalToken: "tok-verified",
+    });
     await action({
-      request: jsonReq({ shop: "store", lookupType: "email", lookupValue: "USER@Example.com" }),
+      request: jsonReq({
+        shop: "store",
+        lookupType: "email",
+        lookupValue: "USER@Example.com",
+        sessionId: "sess-verified",
+        portalToken: "tok-verified",
+      }),
       params: {},
       context: {},
     } as never);

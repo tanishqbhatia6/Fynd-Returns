@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import { securityLogger } from "./observability/logger.server";
 
 const SECRET = (() => {
   const s = process.env.PORTAL_JWT_SECRET;
@@ -7,8 +8,8 @@ const SECRET = (() => {
   if (process.env.NODE_ENV === "production") {
     throw new Error("PORTAL_JWT_SECRET must be set in production (at least 32 characters)");
   }
-  console.warn(
-    "[portal-auth] PORTAL_JWT_SECRET not set or too short — using insecure dev fallback. Set it in .env for production.",
+  securityLogger.warn(
+    "PORTAL_JWT_SECRET not set or too short; using insecure dev fallback. Set it in .env for production.",
   );
   return "dev-secret-change-in-production-unsafe";
 })();
@@ -68,6 +69,69 @@ export function verifyPortalCsrfToken(
 
 export function hashLookupValue(value: string): string {
   return crypto.createHash("sha256").update(String(value).toLowerCase().trim()).digest("hex");
+}
+
+export type PortalSessionRecord = {
+  id: string;
+  shopId: string;
+  lookupType: string;
+  lookupValueHash: string;
+  lookupValueNorm: string | null;
+  matchedReturnIds?: string | null;
+  portalToken: string | null;
+  verifiedAt: Date | null;
+  expiresAt: Date;
+};
+
+export type VerifiedPortalSession = Pick<
+  PortalSessionRecord,
+  "id" | "shopId" | "lookupType" | "lookupValueHash" | "lookupValueNorm" | "matchedReturnIds"
+>;
+
+export async function verifyPortalSession(
+  prisma: {
+    lookupSession: {
+      findUnique: (args: { where: { id: string } }) => Promise<PortalSessionRecord | null>;
+    };
+  },
+  args: {
+    portalToken?: string | null;
+    sessionId?: string | null;
+    shopId?: string;
+    allowedLookupTypes?: string[];
+  },
+): Promise<VerifiedPortalSession | null> {
+  if (!args.portalToken) return null;
+  const claims = verifyPortalToken(args.portalToken);
+  const tokenSessionId =
+    typeof claims?.sessionId === "string" && claims.sessionId.trim() ? claims.sessionId : null;
+  const sessionId = args.sessionId || tokenSessionId;
+  if (!sessionId) return null;
+  if (args.sessionId && tokenSessionId && args.sessionId !== tokenSessionId) return null;
+
+  const session = await prisma.lookupSession.findUnique({ where: { id: sessionId } });
+  if (!session || session.expiresAt < new Date()) return null;
+  if (!session.verifiedAt || session.portalToken !== args.portalToken) return null;
+  if (args.shopId && session.shopId !== args.shopId) return null;
+  if (
+    args.allowedLookupTypes &&
+    args.allowedLookupTypes.length > 0 &&
+    !args.allowedLookupTypes.includes(session.lookupType)
+  ) {
+    return null;
+  }
+  if (claims?.shopId && claims.shopId !== session.shopId) return null;
+  if (claims?.lookupType && claims.lookupType !== session.lookupType) return null;
+  if (claims?.lookupValueHash && claims.lookupValueHash !== session.lookupValueHash) return null;
+
+  return {
+    id: session.id,
+    shopId: session.shopId,
+    lookupType: session.lookupType,
+    lookupValueHash: session.lookupValueHash,
+    lookupValueNorm: session.lookupValueNorm,
+    matchedReturnIds: session.matchedReturnIds ?? null,
+  };
 }
 
 /**

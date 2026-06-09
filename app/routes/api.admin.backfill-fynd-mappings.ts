@@ -2,6 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { extractAffiliateOrderId } from "../lib/shopify-admin.server";
+import { appLogger } from "../lib/observability/logger.server";
 
 /**
  * One-time bulk backfill for ALL historical Shopify orders.
@@ -125,9 +126,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       } catch (err) {
         /* v8 ignore start */
         // defensive: caught err is always Error; non-Error fallback unreachable
-        console.error(
-          `[backfill] metafield write failed for ${node.id}:`,
-          err instanceof Error ? err.message : err,
+        appLogger.error(
+          { err, shopDomain, shopifyOrderId: node.id },
+          "Fynd order mapping metafield write failed",
         );
         /* v8 ignore stop */
       }

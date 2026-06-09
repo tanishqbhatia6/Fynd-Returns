@@ -5,6 +5,7 @@ import { sendApprovalNotification, sendRejectionNotification } from "../lib/noti
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { fetchOrder, fetchOrderByOrderNumber, withRestCredentials } from "../lib/shopify-admin.server";
+import { appLogger, fyndLogger, notifLogger } from "../lib/observability/logger.server";
 
 const TERMINAL_STATUSES = ["approved", "rejected", "completed", "cancelled"];
 const MAX_BULK_IDS = 100;
@@ -181,7 +182,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                       );
                   affiliateOrderId = order?.affiliateOrderId ?? null;
                 } catch (orderErr) {
-                  console.warn(`[BulkApprove] Order lookup failed for ${rc.id}:`, orderErr);
+                  appLogger.warn(
+                    { err: orderErr, shopDomain: session.shop, returnCaseId: rc.id },
+                    "Bulk approve order lookup failed",
+                  );
                 }
               }
 
@@ -234,7 +238,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             }
           } catch (syncErr) {
             const error = syncErr instanceof Error ? syncErr.message : String(syncErr);
-            console.warn(`[BulkApprove] Fynd sync failed for ${rc.id}:`, error);
+            fyndLogger.warn(
+              { err: syncErr, shopDomain: session.shop, returnCaseId: rc.id },
+              "Bulk approve Fynd sync failed",
+            );
             await prisma.returnCase.update({
               where: { id: rc.id },
               data: { fyndSyncStatus: "failed", fyndSyncError: error },
@@ -266,13 +273,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               shopName: session.shop?.replace(".myshopify.com", ""),
             });
           } catch (err) {
-            console.warn(`[BulkApprove] Notification failed for ${rc.id}:`, err);
+            notifLogger.warn(
+              { err, shopDomain: session.shop, returnCaseId: rc.id },
+              "Bulk approve notification failed",
+            );
           }
         }
 
         results.push({ id: rc.id, success: true });
       } catch (err) {
-        console.error(`[BulkApprove] Failed for ${rc.id}:`, err);
+        appLogger.error(
+          { err, shopDomain: session.shop, returnCaseId: rc.id },
+          "Bulk approve return failed",
+        );
         results.push({
           id: rc.id,
           success: false,
@@ -330,13 +343,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               shopName: session.shop?.replace(".myshopify.com", ""),
             });
           } catch (err) {
-            console.warn(`[BulkReject] Notification failed for ${rc.id}:`, err);
+            notifLogger.warn(
+              { err, shopDomain: session.shop, returnCaseId: rc.id },
+              "Bulk reject notification failed",
+            );
           }
         }
 
         results.push({ id: rc.id, success: true });
       } catch (err) {
-        console.error(`[BulkReject] Failed for ${rc.id}:`, err);
+        appLogger.error(
+          { err, shopDomain: session.shop, returnCaseId: rc.id },
+          "Bulk reject return failed",
+        );
         results.push({
           id: rc.id,
           success: false,
@@ -376,7 +395,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
         results.push({ id: rc.id, success: true });
       } catch (err) {
-        console.error(`[BulkResolution] Failed for ${rc.id}:`, err);
+        appLogger.error(
+          { err, shopDomain: session.shop, returnCaseId: rc.id },
+          "Bulk resolution change failed",
+        );
         /* v8 ignore start - defensive Error narrowing in catch */
         results.push({
           id: rc.id,

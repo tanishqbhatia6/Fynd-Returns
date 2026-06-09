@@ -97,16 +97,15 @@ describe("app.returns.create component (default export)", () => {
     expect(container.textContent).toContain("Review & Submit");
   });
 
-  it("renders the breadcrumb back-link to /app/returns", async () => {
+  it("renders the compact page header without the retired breadcrumb", async () => {
     const { container } = renderWithRouter(CreateReturn, {
       initialEntries: ["/app/returns/create"],
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      const backLink = container.querySelector('a[href="/app/returns"]');
-      expect(backLink).toBeTruthy();
-      expect(backLink?.textContent).toContain("Returns");
+      expect(container.querySelector("h1")?.textContent).toBe("Create Return");
     });
+    expect(container.querySelector('a[href="/app/returns"]')).toBeNull();
   });
 
   it("shows a validation error when Search is clicked with an empty input", async () => {

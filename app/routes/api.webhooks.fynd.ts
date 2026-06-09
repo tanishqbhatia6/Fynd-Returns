@@ -15,6 +15,7 @@
 
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import type { FyndWebhookPayload } from "../lib/fynd-webhook.server";
+import { webhookLogger } from "../lib/observability/logger.server";
 
 // Hard cap on Fynd webhook body size. Fynd webhooks are typically <20KB; legitimate
 // multi-shipment payloads stay under 200KB. We cap at 1MB so a malicious or runaway
@@ -55,8 +56,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (isProd && !secret) {
     // Fail closed in production. An unsigned webhook in prod is unsafe — anyone could
     // forge refund-done events to trigger real Shopify refunds.
-    console.error(
-      "[Fynd webhook] FYND_WEBHOOK_SECRET not configured in production — rejecting webhook",
+    webhookLogger.error(
+      { webhook: "fynd", reason: "missing_global_secret" },
+      "FYND_WEBHOOK_SECRET not configured in production; rejecting webhook",
     );
     return Response.json(
       {
@@ -74,7 +76,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const { authenticateWebhook } = await import("../lib/fynd-webhook-verify.server");
     const authResult = authenticateWebhook(request, rawBodyText, secret);
     if (!authResult.ok) {
-      console.warn(`[Fynd webhook] Auth failed: ${authResult.reason}`);
+      webhookLogger.warn(
+        { webhook: "fynd", reason: authResult.reason },
+        "Fynd webhook authentication failed",
+      );
       return Response.json({ error: "Webhook authentication failed" }, { status: 401 });
     }
   }
@@ -87,11 +92,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     ({ payload, eventType } = unwrapFyndWebhookPayload(rawBodyText));
   } catch (parseErr) {
     const errMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
-    console.error(
-      "[Fynd webhook] Parse error:",
-      errMsg,
-      "Body preview:",
-      rawBodyText.slice(0, 300),
+    webhookLogger.error(
+      { webhook: "fynd", err: parseErr },
+      "Fynd webhook JSON parse failed",
     );
     // Store the failed webhook for later inspection
     try {
@@ -117,10 +120,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (webhookTimestamp) {
     const ts = new Date(webhookTimestamp).getTime();
     if (!isNaN(ts) && Math.abs(Date.now() - ts) > 5 * 60_000) {
-      console.warn(
-        "[Fynd webhook] Stale webhook rejected (timestamp drift:",
-        Math.abs(Date.now() - ts),
-        "ms)",
+      webhookLogger.warn(
+        { webhook: "fynd", timestampDriftMs: Math.abs(Date.now() - ts) },
+        "Stale Fynd webhook rejected",
       );
       return Response.json({ error: "Webhook timestamp too old" }, { status: 401 });
     }
@@ -146,9 +148,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // Non-fatal: proceed without dedup check, but surface the cause so a
       // failing dedup query doesn't silently turn into a flood of duplicate
       // webhook processing.
-      console.warn(
-        "[Fynd webhook] dedup check failed (proceeding without):",
-        err instanceof Error ? err.message : err,
+      webhookLogger.warn(
+        { webhook: "fynd", err },
+        "Fynd webhook dedup check failed; proceeding without dedup",
       );
     }
   }
@@ -156,13 +158,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const result = await processFyndWebhook(payload, rawBodyText, eventType);
     if (!result.ok) {
-      console.error("[Fynd webhook]", result.error);
+      webhookLogger.error(
+        { webhook: "fynd", error: result.error },
+        "Fynd webhook processing returned an error",
+      );
       return Response.json({ error: result.error }, { status: 500 });
     }
     return Response.json({ ok: true, action: result.action, returnCaseId: result.returnCaseId });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[Fynd webhook] Error:", msg);
+    webhookLogger.error({ webhook: "fynd", err }, "Fynd webhook processing failed");
     return Response.json({ error: "Webhook processing failed" }, { status: 500 });
   }
 };

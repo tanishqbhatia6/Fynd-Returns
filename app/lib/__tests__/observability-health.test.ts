@@ -19,13 +19,23 @@ vi.mock("../../db.server", () => ({ default: prismaMock }));
 
 vi.mock("../observability/metrics.server", () => ({
   healthCheckDuration: { record: healthCheckDurationRecord },
+  redisHealthStatus: { addCallback: vi.fn() },
+}));
+
+vi.mock("../redis.server", () => ({
+  getRedis: vi.fn(() => null),
 }));
 
 vi.mock("../observability/resilience.server", () => ({
   getAllCircuitBreakerStatuses: getCircuitBreakerStatusesMock,
 }));
 
-import { checkDatabase, checkFyndApi, runReadinessChecks } from "../observability/health.server";
+import {
+  checkDatabase,
+  checkFyndApi,
+  checkRedis,
+  runReadinessChecks,
+} from "../observability/health.server";
 
 describe("checkDatabase", () => {
   beforeEach(() => {
@@ -126,6 +136,30 @@ describe("checkFyndApi", () => {
     await checkFyndApi();
     const init = fetchMock.mock.calls[0][1] as RequestInit;
     expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+});
+
+describe("checkRedis", () => {
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it("returns ok when REDIS_URL is unset outside production", async () => {
+    process.env.NODE_ENV = "test";
+    delete process.env.REDIS_URL;
+    const result = await checkRedis();
+    expect(result.status).toBe("ok");
+    expect(result.message).toBe("Redis disabled outside production");
+  });
+
+  it("returns error when REDIS_URL is unset in production", async () => {
+    process.env.NODE_ENV = "production";
+    delete process.env.REDIS_URL;
+    const result = await checkRedis();
+    expect(result.status).toBe("error");
+    expect(result.message).toBe("REDIS_URL is required in production");
   });
 });
 

@@ -287,7 +287,10 @@ describe("app.returns.$id — coverage closure (component)", () => {
     const rc = makeReturnCase({ status: "approved" });
     const { container } = renderWithRouter(Component, {
       initialEntries: ["/app/returns/ret_clo_001"],
-      loaderData: makeLoaderData({ returnCase: rc, fyndCurrentStatus: "dp_assigned" }) as never,
+      loaderData: makeLoaderData({
+        returnCase: rc,
+        returnJourney: [{ status: "return_dp_assigned", time: "2026-05-02T00:00:00Z" }],
+      }) as never,
     });
     await waitFor(() => {
       expect(container.textContent).toContain("RMA-CLO-001");

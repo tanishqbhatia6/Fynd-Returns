@@ -3,10 +3,13 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parseDateRange } from "../lib/dashboard-date-utils";
 import { formatReturnRequestId } from "../lib/return-request-id";
+import { appLogger } from "../lib/observability/logger.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  let shopDomain: string | undefined;
   try {
     const { session } = await authenticate.admin(request);
+    shopDomain = session.shop;
     const url = new URL(request.url);
     const status = url.searchParams.get("status") || "";
     const query = url.searchParams.get("query") || "";
@@ -232,7 +235,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       },
     });
   } catch (err) {
-    console.error("[api.returns.export] Loader error:", err);
+    appLogger.error({ err, shopDomain }, "Returns export loader failed");
     return new Response(
       JSON.stringify({ error: "Failed to export returns. Please try again later." }),
       { status: 500, headers: { "Content-Type": "application/json" } },

@@ -88,6 +88,15 @@ vi.mock("../../lib/fynd.server", () => ({
 }));
 vi.mock("../../lib/portal-auth.server", () => ({
   createPortalCsrfToken: createPortalCsrfTokenMock,
+  verifyPortalSession: vi.fn(async () => ({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "shopper@example.com",
+    matchedReturnIds: null,
+  })),
+  hashLookupValue: vi.fn(() => "hash"),
 }));
 vi.mock("../../lib/shopify-admin.server", async () => {
   class OrderAccessError extends Error {
@@ -127,10 +136,19 @@ function setFyndShipments(
   shipments: unknown[],
   shape: "items" | "shipments" | "data.items" = "items",
 ) {
+  const withCustomerContact = shipments.map((shipment) =>
+    shipment && typeof shipment === "object"
+      ? {
+          customer_details: { email: "shopper@example.com", phone: "+15550100" },
+          delivery_address: { email: "shopper@example.com", phone: "+15550100" },
+          ...shipment,
+        }
+      : shipment,
+  );
   let payload: Record<string, unknown>;
-  if (shape === "items") payload = { items: shipments };
-  else if (shape === "shipments") payload = { shipments };
-  else payload = { data: { items: shipments } };
+  if (shape === "items") payload = { items: withCustomerContact };
+  else if (shape === "shipments") payload = { shipments: withCustomerContact };
+  else payload = { data: { items: withCustomerContact } };
   createFyndClientOrErrorMock.mockResolvedValue({
     ok: true,
     client: {
@@ -265,12 +283,8 @@ describe("formattedReturns mapping", () => {
       context: {},
     } as never);
     const body = await res.json();
-    expect(body.existingReturns).toHaveLength(2);
-    expect(body.existingReturns[0].items[0].title).toBe("Custom note");
-    expect(body.existingReturns[0].items[1].title).toBe("SKU-B"); // sku fallback
-    expect(body.existingReturns[0].items[2].title).toBe("li-3"); // shopifyLineItemId fallback
-    expect(body.existingReturns[1].returnRequestId).toMatch(/^R-/); // formatReturnRequestId used
-    expect(body.activeReturns).toHaveLength(2); // both initiated and approved are active
+    expect(body).not.toHaveProperty("existingReturns");
+    expect(body).not.toHaveProperty("activeReturns");
   });
 });
 
@@ -291,6 +305,7 @@ describe("ReturnCase fyndOrderId resolution", () => {
       name: "#777",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "USD",
@@ -316,6 +331,7 @@ describe("ReturnCase fyndOrderId resolution", () => {
       id: "gid://shopify/Order/888",
       name: "#888",
       createdAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "USD",
@@ -360,6 +376,7 @@ describe("Fynd synthetic order build path", () => {
       id: "gid://shopify/Order/14115",
       name: "#14115",
       createdAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "INR",
@@ -644,6 +661,7 @@ describe("single-shipment Fynd enrichment", () => {
       name: "#9001",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "INR",
@@ -704,6 +722,7 @@ describe("single-shipment Fynd enrichment", () => {
       name: "#9002",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "USD",
@@ -738,6 +757,7 @@ describe("portalAllowedFulfillmentStatuses settings parse", () => {
       name: "#100",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "DELIVERED", // not in default list
       displayFinancialStatus: "PAID",
       currencyCode: "USD",
@@ -762,6 +782,7 @@ describe("portalAllowedFulfillmentStatuses settings parse", () => {
       name: "#101",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED", // default-allowed
       displayFinancialStatus: "PAID",
       currencyCode: "USD",
@@ -792,6 +813,7 @@ describe("generic ineligibility else branch", () => {
       name: "#200",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "PENDING_FULFILLMENT", // not in default allow list, not in branch matchers
       displayFinancialStatus: "PARTIALLY_PAID",
       currencyCode: "USD",
@@ -819,6 +841,7 @@ describe("Fynd shipment-status order-level block", () => {
       name: "#300",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "INR",
@@ -856,6 +879,7 @@ describe("Fynd shipment-status order-level block", () => {
       name: "#301",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "INR",
@@ -895,6 +919,7 @@ describe("returnOffersData enabled", () => {
       name: "#400",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "USD",
@@ -930,6 +955,7 @@ describe("non-fatal returnItem qty lookups", () => {
       name: "#500",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "USD",
@@ -950,6 +976,7 @@ describe("non-fatal returnItem qty lookups", () => {
       name: "#501",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "USD",
@@ -980,6 +1007,7 @@ describe("shipmentReturnedQtyMap edge cases", () => {
       name: "#600",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "INR",
@@ -1035,6 +1063,7 @@ describe("shipmentReturnedQtyMap edge cases", () => {
       name: "#601",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "INR",
@@ -1176,6 +1205,7 @@ describe("helper extraction edge cases", () => {
       name: "#PSE",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "USD",
@@ -1199,6 +1229,7 @@ describe("helper extraction edge cases", () => {
       name: "#PSE2",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "USD",
@@ -1228,6 +1259,7 @@ describe("single-shipment enrichment bag-level fallback", () => {
       name: "#SSFB",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "INR",
@@ -1290,6 +1322,7 @@ describe("single-shipment enrichment bag-level fallback", () => {
       name: "#SSNM",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "INR",
@@ -1426,6 +1459,7 @@ describe("micro-branches", () => {
       name: "#SK0",
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
+      email: "shopper@example.com",
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "USD",
@@ -1458,6 +1492,7 @@ describe("micro-branches", () => {
       createdAt: new Date().toISOString(),
       processedAt: new Date().toISOString(),
       // Use an UNFULFILLED order so order-level eligibility starts false
+      email: "shopper@example.com",
       displayFulfillmentStatus: "UNFULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "INR",

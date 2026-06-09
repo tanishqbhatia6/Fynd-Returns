@@ -103,8 +103,8 @@ This runs `shopify app deploy` to push your app configuration to Shopify.
 |----------------------|------------------------------------------------------|--------------------------------------------------------------|
 | `npm run dev`        | `npx shopify app dev`                                | Start dev server with Shopify CLI tunnel                     |
 | `npm run dev:local`  | `prisma generate && prisma db push && react-router dev` | Start dev server without Shopify CLI                      |
-| `npm run build`      | `react-router build`                                 | Build for production                                         |
-| `npm run start`      | Backfill scripts + `react-router-serve`              | Start production server with data migration scripts          |
+| `npm run build`      | Portal build + `react-router build`                  | Build for production                                         |
+| `npm run start`      | Validate env + migrate + startup backfills + serve   | Start production server                                      |
 | `npm run setup`      | `prisma generate && prisma migrate deploy`           | Generate client and run migrations                           |
 | `npm run deploy`     | `shopify app deploy`                                 | Deploy app configuration to Shopify                          |
 | `npm run config:link`| `shopify app config link`                            | Link local config to Shopify Partner dashboard               |
@@ -113,7 +113,9 @@ This runs `shopify app deploy` to push your app configuration to Shopify.
 | `npm run test:watch` | `vitest`                                             | Run tests in watch mode                                      |
 | `npm run test:fynd-api` | `node scripts/test-fynd-apis.mjs`                 | Test Fynd API connectivity                                   |
 
-> **Note:** The `start` script runs backfill migrations (`backfill-shopify-order-ids`, `backfill-webhook-logs`, `backfill-customer-info`) before starting the server. This ensures data consistency after schema changes.
+> **Note:** The `start` script validates required production environment values,
+> applies Prisma migrations, runs idempotent startup backfills, and then starts
+> `react-router-serve`.
 
 ---
 
@@ -127,7 +129,11 @@ This runs `shopify app deploy` to push your app configuration to Shopify.
 | `SHOPIFY_APP_URL`    | Public URL of the app (used for OAuth redirect, App Proxy) | `https://your-app.fly.dev`                   |
 | `SHOPIFY_API_KEY`    | Shopify app API key from Partner Dashboard                 | `abc123def456...`                            |
 | `SHOPIFY_API_SECRET` | Shopify app API secret from Partner Dashboard              | `shpss_abc123...`                            |
+| `SCOPES`             | Shopify OAuth scopes                                       | `read_orders,write_orders`                   |
+| `REDIS_URL`          | Redis connection string for production rate limiting       | `rediss://default:...@redis.example.com:6379` |
+| `CRON_SECRET`        | Secret for scheduled/cron endpoints                        | `32+ random characters`                      |
 | `PORTAL_JWT_SECRET`  | Secret for signing portal JWT tokens (min 32 chars)        | `a-secure-random-string-at-least-32-chars`   |
+| `FYND_WEBHOOK_SECRET`| Secret for legacy/global Fynd webhook authentication       | `32+ random characters`                      |
 | `ENCRYPTION_KEY`     | Key for encrypting sensitive data (Fynd credentials)       | `32-byte-hex-string`                         |
 
 ### Optional Variables
@@ -139,8 +145,11 @@ This runs `shopify app deploy` to push your app configuration to Shopify.
 
 ### Security Notes
 
-- `PORTAL_JWT_SECRET` must be at least 32 characters in production. In development, a fallback is used with a console warning.
-- `ENCRYPTION_KEY` is used to encrypt Fynd API credentials at rest. Run `npm run validate:key` to verify it is configured correctly.
+- `PORTAL_JWT_SECRET` must be at least 32 characters in production. In development, a fallback is used with a structured warning.
+- `ENCRYPTION_KEY` is used to encrypt Fynd API credentials at rest and must be exactly 64 hex characters in production. Run `npm run validate:key` to verify it is configured correctly.
+- `SHOPIFY_APP_URL` must be an origin-only `https://` URL on a stable public hostname in production.
+- `REDIS_URL` is mandatory in production so portal and API rate limits work across multiple instances.
+- `FYND_WEBHOOK_SECRET` is required in production for `/api/webhooks/fynd`; per-shop webhook secrets remain preferred for shop-specific callbacks.
 - Never commit `.env` files to version control.
 
 ---

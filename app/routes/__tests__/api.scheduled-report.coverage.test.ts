@@ -33,9 +33,18 @@ import { loader } from "../api.scheduled-report";
 
 const origEnv = { ...process.env };
 
-function mkReq(headers: Record<string, string> = {}) {
+function mkReq(headers: Record<string, string> = {}, opts: { defaultCronAuth?: boolean } = {}) {
   const h = new Headers();
   for (const [k, v] of Object.entries(headers)) h.set(k, v);
+  const shouldDefaultAuth = opts.defaultCronAuth ?? true;
+  if (
+    shouldDefaultAuth &&
+    process.env.CRON_SECRET &&
+    !h.has("x-cron-secret") &&
+    !h.has("authorization")
+  ) {
+    h.set("x-cron-secret", process.env.CRON_SECRET);
+  }
   return new Request("https://app.example/api/scheduled-report", { headers: h });
 }
 
@@ -67,6 +76,7 @@ function dow(d: Date): number {
 
 beforeEach(() => {
   process.env = { ...origEnv };
+  process.env.CRON_SECRET = "secret";
   resetPrismaMock(prismaMock);
   // resetPrismaMock only does .mockClear(), which preserves queued
   // mockResolvedValueOnce values across tests. Fully reset the mocks our
@@ -112,7 +122,7 @@ describe("api.scheduled-report — timing-safe-equal length mismatches", () => {
     process.env.CRON_SECRET = "secret-value";
     prismaMock.shopSettings.findMany.mockResolvedValueOnce([]);
     const res = await loader({
-      request: mkReq(),
+      request: mkReq({}, { defaultCronAuth: false }),
       params: {},
       context: {},
     } as never);

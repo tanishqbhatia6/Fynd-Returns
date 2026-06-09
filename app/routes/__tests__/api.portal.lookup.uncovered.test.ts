@@ -6,8 +6,8 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
  * tail of the action handler. The two existing test files exhaustively
  * cover the OTP gate state machine and the prisma where-clause builders
  * but stop short of the live Shopify / Fynd integration paths reachable
- * once the OTP gate is bypassed (lookupType ∈ {return_id, order_no,
- * return_no, forward_awb, return_awb} and OTP gate disabled).
+ * once the OTP gate is satisfied or the lookup type is non-contact
+ * (lookupType ∈ {return_id, order_no, return_no, forward_awb, return_awb}).
  *
  * This file intentionally targets:
  *   - portalLabelsJson + returnLabelJson JSON.parse branches
@@ -24,8 +24,8 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
  *     (lines 593–604) — both tracking-match and no-match branches
  *
  * Notes
- *   - All shopRecord stubs disable both portalOtp* flags so the OTP gate
- *     is bypassed and execution flows into the orders/returns block.
+ *   - jsonReq injects a verified portal token/session so execution flows
+ *     through the orders/returns block after the OTP gate.
  *   - shopRecord.settings is a NON-EMPTY object so the `shopRecord.settings`
  *     truthy guards ahead of Fynd calls evaluate true.
  */
@@ -106,15 +106,28 @@ vi.mock("../../lib/portal-i18n", () => ({
 }));
 vi.mock("../../lib/portal-auth.server", () => ({
   createPortalCsrfToken: () => "csrf-tok",
+  verifyPortalSession: vi.fn(async () => ({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "shopper@example.com",
+    matchedReturnIds: null,
+  })),
+  hashLookupValue: vi.fn(() => "hash"),
 }));
 
 import { action } from "../api.portal.lookup";
 
 function jsonReq(body: unknown) {
+  const payload =
+    body && typeof body === "object"
+      ? { portalToken: "verified-token", sessionId: "session-1", ...body }
+      : body;
   return new Request("https://app.example/api/portal/lookup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -156,6 +169,17 @@ beforeEach(() => {
     defaultReturnInstructions: null,
   });
   prismaMock.session.findFirst.mockResolvedValue({ accessToken: "tok" });
+  prismaMock.lookupSession.findUnique.mockResolvedValue({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "shopper@example.com",
+    portalToken: "verified-token",
+    verifiedAt: new Date(),
+    expiresAt: new Date(Date.now() + 60_000),
+    matchedReturnIds: null,
+  });
 });
 
 // ─────────────── shopSettings JSON parsing branches ───────────────
@@ -197,7 +221,7 @@ describe("shopSettings + return record JSON parsing", () => {
     expect(getPortalLabelsMock).toHaveBeenCalledWith("en", null);
   });
 
-  it("approved return with returnLabelJson populates returnLabelInfo", async () => {
+  it("approved return with returnLabelJson populates the public returnLabel field", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithSettings());
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({
       portalLanguage: "en",
@@ -208,6 +232,7 @@ describe("shopSettings + return record JSON parsing", () => {
       {
         id: "rc-1",
         status: "approved",
+        customerEmailNorm: "shopper@example.com",
         createdAt: new Date(),
         items: [],
         events: [],
@@ -223,11 +248,15 @@ describe("shopSettings + return record JSON parsing", () => {
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.returns[0].returnLabelInfo).toEqual({
-      carrier: "BlueDart",
-      trackingNumber: "AWB123",
-    });
-    expect(body.returns[0].returnLabelUrl).toBe("https://label/url");
+    expect(body.returns[0].returnLabel).toEqual(
+      expect.objectContaining({
+        carrier: "BlueDart",
+        trackingNumber: "AWB123",
+        labelUrl: "https://label/url",
+      }),
+    );
+    expect(body.returns[0]).not.toHaveProperty("returnLabelJson");
+    expect(body.returns[0]).not.toHaveProperty("returnLabelUrl");
     expect(body.returns[0].returnInstructions).toBe("instr");
   });
 
@@ -237,6 +266,7 @@ describe("shopSettings + return record JSON parsing", () => {
       {
         id: "rc-x",
         status: "completed",
+        customerEmailNorm: "shopper@example.com",
         createdAt: new Date(),
         items: [],
         events: [],
@@ -251,8 +281,9 @@ describe("shopSettings + return record JSON parsing", () => {
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
-    // Caught — info stays null but request still resolves OK.
-    expect(body.returns[0].returnLabelInfo).toBeNull();
+    // Caught — no raw/legacy label field leaks, but request still resolves OK.
+    expect(body.returns[0]).not.toHaveProperty("returnLabelInfo");
+    expect(body.returns[0]).not.toHaveProperty("returnLabelJson");
   });
 });
 
@@ -263,7 +294,8 @@ describe("Shopify orders fetch (email / phone)", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithSettings());
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     fetchOrdersByFilterMock.mockResolvedValueOnce([
-      { id: "o-1", name: "#1001", createdAt: new Date().toISOString() },
+      { id: "o-1",
+        email: "shopper@example.com", name: "#1001", createdAt: new Date().toISOString() },
     ]);
 
     const res = await action({
@@ -293,10 +325,12 @@ describe("Shopify orders fetch (email / phone)", () => {
     expect(body.orders).toEqual([]);
   });
 
-  it("phone lookup queries Shopify with rawValue free-text", async () => {
+  it("verified phone lookup queries Shopify with rawValue free-text", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithSettings());
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
-    fetchOrdersByFilterMock.mockResolvedValueOnce([{ id: "o-2", name: "#2002" }]);
+    fetchOrdersByFilterMock.mockResolvedValueOnce([
+      { id: "o-2", email: "shopper@example.com", name: "#2002" },
+    ]);
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "phone", lookupValue: "+1 415 555 1212" }),
@@ -307,7 +341,7 @@ describe("Shopify orders fetch (email / phone)", () => {
     expect(fetchOrdersByFilterMock).toHaveBeenCalledWith(expect.anything(), "+1 415 555 1212");
   });
 
-  it("phone Shopify fetch error swallowed", async () => {
+  it("verified phone Shopify fetch error is swallowed", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithSettings());
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     shopifyModuleMock.unauthenticated.admin.mockRejectedValueOnce(new Error("nope"));
@@ -327,7 +361,8 @@ describe("order_no / return_no Shopify direct fetch", () => {
   it("direct Shopify hit returns the order with _needsFyndEnrich=true", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithSettings());
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
-    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-1", name: "#1001" });
+    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-1",
+        email: "shopper@example.com", name: "#1001" });
     // Make sure the fynd-enrich follow-up sees a "no fynd client" early exit.
     createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: false, error: "disabled" });
 
@@ -373,7 +408,8 @@ describe("FyndOrderMapping fallback (after direct Shopify miss)", () => {
       shopifyOrderId: "gid://shopify/Order/123",
       shopifyOrderName: "#1234",
     });
-    fetchOrderByGidMock.mockResolvedValueOnce({ id: "o-from-gid", name: "#1234" });
+    fetchOrderByGidMock.mockResolvedValueOnce({ id: "o-from-gid",
+        email: "shopper@example.com", name: "#1234" });
     // ReturnCase fallback findMany should not be needed since orders.length>0; but
     // returnCase.findMany is the first call already used. Stub a second call returning [].
     prismaMock.returnCase.findMany.mockResolvedValue([]);
@@ -398,7 +434,8 @@ describe("FyndOrderMapping fallback (after direct Shopify miss)", () => {
       shopifyOrderId: null,
       shopifyOrderName: "#5678",
     });
-    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-mapped", name: "#5678" });
+    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-mapped",
+        email: "shopper@example.com", name: "#5678" });
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "5678" }),
@@ -443,7 +480,8 @@ describe("ReturnCase fallback (Shopify GID + name + synthetic)", () => {
         createdAt: new Date(),
       },
     ]);
-    fetchOrderByGidMock.mockResolvedValueOnce({ id: "o-rc-gid", name: "#FYND-9" });
+    fetchOrderByGidMock.mockResolvedValueOnce({ id: "o-rc-gid",
+        email: "shopper@example.com", name: "#FYND-9" });
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "return_no", lookupValue: "FYND-9" }),
@@ -475,7 +513,8 @@ describe("ReturnCase fallback (Shopify GID + name + synthetic)", () => {
       .mockResolvedValueOnce({ admin: { graphql: vi.fn() } }) // direct (orders empty)
       .mockRejectedValueOnce(new Error("gid fail")) // GID branch fails
       .mockResolvedValueOnce({ admin: { graphql: vi.fn() } }); // name branch
-    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-name", name: "#NAME-X" });
+    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-name",
+        email: "shopper@example.com", name: "#NAME-X" });
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "NAME-X" }),
@@ -521,7 +560,7 @@ describe("ReturnCase fallback (Shopify GID + name + synthetic)", () => {
     const o = body.orders[0];
     expect(o.id).toBe("rc-syn");
     expect(o.name).toBe("#SYN-1");
-    expect(o.email).toBe("buyer@x.com");
+    expect(o).not.toHaveProperty("email");
     expect(o.lineItems).toHaveLength(2);
     expect(o.lineItems[0].title).toBe("Tee");
     expect(o.lineItems[1].title).toBe("BAG");
@@ -536,6 +575,7 @@ describe("ReturnCase fallback (Shopify GID + name + synthetic)", () => {
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
         id: "rc-broken",
+        customerEmailNorm: "shopper@example.com",
         shopifyOrderId: null,
         shopifyOrderName: null, // skip the name branch entirely
         fyndPayloadJson: "{not-json",
@@ -598,6 +638,7 @@ describe("Fynd-based order discovery (Shopify-empty fallback)", () => {
     parseFyndOrderDetailsForTabMock.mockReturnValueOnce({ shipments: [] });
     fetchOrderByFyndAffiliateIdMock.mockResolvedValueOnce({
       id: "shop-found",
+        email: "shopper@example.com",
       name: "#FYND-ABC-1",
     });
 
@@ -669,11 +710,11 @@ describe("Fynd-based order discovery (Shopify-empty fallback)", () => {
     expect(body.orders).toHaveLength(1);
     const o = body.orders[0];
     expect(o.name).toBe("AFFX-1");
-    expect(o.email).toBe("fc@x.com");
+    expect(o).not.toHaveProperty("email");
     expect(o.currencyCode).toBe("INR");
     // sku-based dedupe: 2 unique skus → 2 line items
     expect(o.lineItems).toHaveLength(2);
-    expect(o.shippingAddress?.city).toBe("BLR");
+    expect(o).not.toHaveProperty("shippingAddress");
     expect(o._needsFyndEnrich).toBe(false);
   });
 
@@ -688,7 +729,14 @@ describe("Fynd-based order discovery (Shopify-empty fallback)", () => {
       client: { searchShipmentsByExternalOrderId: searchShipmentsMock },
     });
     searchShipmentsMock.mockResolvedValueOnce({
-      items: [{ journey_type: "forward", affiliate_order_id: "AFF-T", bags: [] }],
+      items: [
+        {
+          journey_type: "forward",
+          affiliate_order_id: "AFF-T",
+          customer_details: { email: "shopper@example.com", phone: "+15550100" },
+          bags: [],
+        },
+      ],
     });
     parseFyndOrderDetailsForTabMock.mockReturnValueOnce(null);
     // Make the shopify admin call inside the affiliate resolve throw
@@ -741,7 +789,14 @@ describe("Fynd-based order discovery (Shopify-empty fallback)", () => {
       client: { searchShipmentsByExternalOrderId: searchShipmentsMock },
     });
     searchShipmentsMock.mockResolvedValueOnce({
-      items: [{ journey_type: "return", affiliate_order_id: "RET-1", bags: [] }],
+      items: [
+        {
+          journey_type: "return",
+          affiliate_order_id: "RET-1",
+          customer_details: { email: "shopper@example.com", phone: "+15550100" },
+          bags: [],
+        },
+      ],
     });
     parseFyndOrderDetailsForTabMock.mockReturnValueOnce(null);
     fetchOrderByFyndAffiliateIdMock.mockResolvedValueOnce(null);
@@ -780,7 +835,8 @@ describe("Fynd enrichment for existing Shopify order (lines 559-590)", () => {
   it("attaches parsed Fynd payload to orders[0] when forward shipments returned", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithSettings());
     prismaMock.returnCase.findMany.mockResolvedValue([]);
-    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-enrich", name: "#1001" });
+    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-enrich",
+        email: "shopper@example.com", name: "#1001" });
 
     // First call (Fynd discovery block) is bypassed because orders.length>0;
     // Only the enrichment block fires.
@@ -801,14 +857,15 @@ describe("Fynd enrichment for existing Shopify order (lines 559-590)", () => {
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.orders[0].fyndData).toBeTruthy();
+    expect(body.orders[0]).not.toHaveProperty("fyndData");
     expect(body.orders[0]._needsFyndEnrich).toBe(false);
   });
 
   it("enrichment with empty fynd items → no fyndData attached", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithSettings());
     prismaMock.returnCase.findMany.mockResolvedValue([]);
-    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-noenr", name: "#1002" });
+    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-noenr",
+        email: "shopper@example.com", name: "#1002" });
 
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -823,13 +880,14 @@ describe("Fynd enrichment for existing Shopify order (lines 559-590)", () => {
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.orders[0].fyndData).toBeNull();
+    expect(body.orders[0]).not.toHaveProperty("fyndData");
   });
 
   it("enrichment: forwardItems empty → uses rawItems (return-only shipments)", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithSettings());
     prismaMock.returnCase.findMany.mockResolvedValue([]);
-    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-only-ret", name: "#1003" });
+    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-only-ret",
+        email: "shopper@example.com", name: "#1003" });
 
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -847,13 +905,14 @@ describe("Fynd enrichment for existing Shopify order (lines 559-590)", () => {
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.orders[0].fyndData).toBeTruthy();
+    expect(body.orders[0]).not.toHaveProperty("fyndData");
   });
 
   it("enrichment with parseFyndOrderDetailsForTab returning null → no enrichment, but loop breaks", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithSettings());
     prismaMock.returnCase.findMany.mockResolvedValue([]);
-    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-null-parse", name: "#1004" });
+    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-null-parse",
+        email: "shopper@example.com", name: "#1004" });
 
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -871,7 +930,7 @@ describe("Fynd enrichment for existing Shopify order (lines 559-590)", () => {
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.orders[0].fyndData).toBeNull();
+    expect(body.orders[0]).not.toHaveProperty("fyndData");
     // _needsFyndEnrich should remain true since enrichment didn't materialise
     expect(body.orders[0]._needsFyndEnrich).toBe(true);
   });
@@ -879,7 +938,8 @@ describe("Fynd enrichment for existing Shopify order (lines 559-590)", () => {
   it("enrichment block error swallowed", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithSettings());
     prismaMock.returnCase.findMany.mockResolvedValue([]);
-    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-throw", name: "#1005" });
+    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-throw",
+        email: "shopper@example.com", name: "#1005" });
     createFyndClientOrErrorMock.mockRejectedValueOnce(new Error("enrich boom"));
 
     const res = await action({
@@ -895,7 +955,8 @@ describe("Fynd enrichment for existing Shopify order (lines 559-590)", () => {
   it("enrichment skipped when fynd client lacks searchShipmentsByExternalOrderId", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithSettings());
     prismaMock.returnCase.findMany.mockResolvedValue([]);
-    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-noclient", name: "#1006" });
+    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-noclient",
+        email: "shopper@example.com", name: "#1006" });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: {
@@ -923,6 +984,7 @@ describe("AWB lookup: Shopify fulfillments tracking-number cross-check", () => {
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     fetchOrderByOrderNumberMock.mockResolvedValueOnce({
       id: "o-awb",
+        email: "shopper@example.com",
       name: "#A-1",
       fulfillments: [{ trackingInfo: [{ number: "AWB-MATCH-9" }] }],
     });
@@ -944,6 +1006,7 @@ describe("AWB lookup: Shopify fulfillments tracking-number cross-check", () => {
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     fetchOrderByOrderNumberMock.mockResolvedValueOnce({
       id: "o-no-awb",
+        email: "shopper@example.com",
       name: "#A-2",
       fulfillments: [{ trackingInfo: [{ number: "OTHER-XX" }] }],
     });
@@ -963,6 +1026,7 @@ describe("AWB lookup: Shopify fulfillments tracking-number cross-check", () => {
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     fetchOrderByOrderNumberMock.mockResolvedValueOnce({
       id: "o-empty-f",
+        email: "shopper@example.com",
       name: "#A-3",
       fulfillments: [],
     });

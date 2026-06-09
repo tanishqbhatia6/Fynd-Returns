@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { securityLogger } from "./observability/logger.server";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
@@ -54,7 +55,7 @@ function getKeyRing(): { active: Buffer; retired: Buffer[] } {
   const active = parseHexKey(process.env.ENCRYPTION_KEY);
   if (!active) {
     if (isDevOrTest) {
-      console.warn("[encryption] Using insecure dev key. Set ENCRYPTION_KEY for real encryption.");
+      securityLogger.warn("Using insecure dev encryption key. Set ENCRYPTION_KEY for real encryption.");
       // Buffer.alloc(32, str) only fills with the FIRST byte of `str`, so this
       // produces 32 copies of 0x64 ("d"). It's deliberately weak and used only
       // when ENCRYPTION_KEY is unset in dev/test. Use Buffer.from(...).slice

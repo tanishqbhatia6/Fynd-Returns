@@ -1,0 +1,88 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: returnpromax-postgres-backup
+spec:
+  schedule: "17 2 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 900
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: postgres:16-alpine
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  apk add --no-cache aws-cli coreutils
+                  timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+                  file="/tmp/returnpromax-${timestamp}.dump"
+                  pg_dump "$DATABASE_URL" --format=custom --no-owner --no-acl --file="$file"
+                  sha256sum "$file" > "${file}.sha256"
+                  sse_args=""
+                  if [ "${BACKUP_S3_SSE:-AES256}" != "NONE" ]; then
+                    sse_args="--sse ${BACKUP_S3_SSE:-AES256}"
+                    if [ "${BACKUP_S3_SSE:-AES256}" = "aws:kms" ] && [ -n "${BACKUP_S3_KMS_KEY_ID:-}" ]; then
+                      sse_args="$sse_args --sse-kms-key-id ${BACKUP_S3_KMS_KEY_ID}"
+                    fi
+                  fi
+                  aws s3 cp "$file" "s3://${BACKUP_BUCKET}/postgres/${file##*/}" $sse_args
+                  aws s3 cp "${file}.sha256" "s3://${BACKUP_BUCKET}/postgres/${file##*/}.sha256" $sse_args
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: returnpromax-secrets
+                      key: DATABASE_URL
+                - name: BACKUP_BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      name: returnpromax-secrets
+                      key: BACKUP_BUCKET
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: returnpromax-secrets
+                      key: AWS_ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: returnpromax-secrets
+                      key: AWS_SECRET_ACCESS_KEY
+                - name: AWS_DEFAULT_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      name: returnpromax-secrets
+                      key: AWS_DEFAULT_REGION
+                - name: BACKUP_S3_SSE
+                  value: AES256
+                - name: BACKUP_S3_KMS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: returnpromax-secrets
+                      key: BACKUP_S3_KMS_KEY_ID
+                      optional: true

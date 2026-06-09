@@ -45,7 +45,7 @@ The `ShopSettings` model contains **65+ fields** organized into the following ca
 | SMTP Configuration              | 7           | Email server connection                  |
 | Admin Notifications             | 2           | Admin alert settings                     |
 | WhatsApp / SMS                  | 5           | WhatsApp provider and credentials        |
-| Portal OTP Verification         | 2           | OTP requirement toggles                  |
+| Portal OTP Verification         | 2           | Locked-on portal verification flags      |
 | Customer Blocklist              | 1           | Blocklist enable/disable                 |
 | Portal Customization            | 4           | Theme, config, branding                  |
 | Portal Language & Labels        | 2           | i18n language and overrides              |
@@ -391,8 +391,10 @@ For markets with both prepaid and COD orders, separate refund method configurati
 
 | Field                  | Type       | Default  | Description                                                |
 |------------------------|------------|----------|------------------------------------------------------------|
-| `portalOtpEmailEnabled`| `Boolean`  | `false`  | Require OTP verification for email-based portal lookups.   |
-| `portalOtpSmsEnabled`  | `Boolean`  | `false`  | Require OTP verification for phone-based portal lookups.   |
+| `portalOtpEmailEnabled`| `Boolean`  | `true`   | Locked-on legacy field; email portal lookups require verified identity. |
+| `portalOtpSmsEnabled`  | `Boolean`  | `true`   | Locked-on legacy field; phone OTP starts fail closed until SMS/WhatsApp OTP delivery is implemented. |
+
+These fields remain in the schema for backwards compatibility, but the production portal does not expose a disable path. Sensitive lookup and return-creation APIs require a verified portal session.
 
 ---
 
@@ -688,8 +690,8 @@ Valid Shopify fulfillment statuses: `FULFILLED`, `PARTIALLY_FULFILLED`, `UNFULFI
 | 42| `portalExchangeEnabled`            | `Boolean`    | `false`       | Portal                |
 | 43| `portalLabelsJson`                 | `String?`    | `null`        | Portal Language       |
 | 44| `portalLanguage`                   | `String`     | `"en"`        | Portal Language       |
-| 45| `portalOtpEmailEnabled`            | `Boolean`    | `false`       | Portal OTP            |
-| 46| `portalOtpSmsEnabled`              | `Boolean`    | `false`       | Portal OTP            |
+| 45| `portalOtpEmailEnabled`            | `Boolean`    | `true`        | Portal OTP            |
+| 46| `portalOtpSmsEnabled`              | `Boolean`    | `true`        | Portal OTP            |
 | 47| `portalThemeJson`                  | `String?`    | `null`        | Portal                |
 | 48| `productPoliciesJson`              | `String?`    | `null`        | Product Policies      |
 | 49| `readAllOrdersEnabled`             | `Boolean`    | `false`       | Order Access          |

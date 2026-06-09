@@ -5,11 +5,12 @@ import { useLoaderData, useSearchParams, Link, useFetcher, useRevalidator } from
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { AppPage } from "../components/AppPage";
+import { webhookLogger } from "../lib/observability/logger.server";
 
 const PAGE_SIZE = 50;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
 
   const url = new URL(request.url);
   const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
@@ -157,7 +158,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       loaderError: null,
     };
   } catch (err) {
-    console.error("[webhook-logs] Loader error:", err);
+    webhookLogger.error({ err, shopDomain: session.shop }, "Webhook logs loader failed");
     return {
       logs: [],
       page: 1,

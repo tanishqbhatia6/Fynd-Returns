@@ -17,8 +17,26 @@ import {
   type ShipmentsListingSearchType,
 } from "../lib/fynd.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
+import { verifyPortalSession, type VerifiedPortalSession } from "../lib/portal-auth.server";
+import { portalLogger } from "../lib/observability/logger.server";
 
 type FyndClient = Extract<FyndClientResult, { ok: true }>["client"];
+
+function parseMatchedReturnIds(session: VerifiedPortalSession): string[] {
+  try {
+    const parsed = JSON.parse(session.matchedReturnIds || "[]");
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeOrderName(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .replace(/^#/, "")
+    .toLowerCase();
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
@@ -36,7 +54,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
 
   try {
-    const { shop, type, orderName, returnIds } = await request.json();
+    const { shop, type, orderName, returnIds, portalToken, sessionId } = await request.json();
     if (!shop) {
       return withCors(Response.json({ error: "shop required" }, { status: 400 }), request);
     }
@@ -49,6 +67,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (!shopRecord) {
       return withCors(Response.json({ error: "Shop not found" }, { status: 404 }), request);
     }
+
+    const verifiedSession = await verifyPortalSession(prisma, {
+      portalToken: typeof portalToken === "string" ? portalToken : null,
+      sessionId: typeof sessionId === "string" ? sessionId : null,
+      shopId: shopRecord.id,
+    });
+    if (!verifiedSession) {
+      return withCors(
+        Response.json({ error: "Verified customer session is required" }, { status: 401 }),
+        request,
+      );
+    }
+    const matchedReturnIds = parseMatchedReturnIds(verifiedSession);
 
     const settingsForFynd = shopRecord.settings as
       | Parameters<typeof createFyndClientOrError>[0]
@@ -77,7 +108,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     };
 
     let fyndData = null;
-    if (type === "order" && orderName) {
+    if ((type === "order" || type === "orders") && orderName) {
+      const requestedOrder = normalizeOrderName(orderName);
+      let authorizedForOrder =
+        verifiedSession.lookupType === "order_no" &&
+        normalizeOrderName(verifiedSession.lookupValueNorm) === requestedOrder;
+      if (!authorizedForOrder && matchedReturnIds.length > 0) {
+        const ownedReturnForOrder = await prisma.returnCase.findFirst({
+          where: {
+            id: { in: matchedReturnIds },
+            shopId: shopRecord.id,
+            OR: [
+              { shopifyOrderName: { equals: requestedOrder, mode: "insensitive" } },
+              { shopifyOrderName: { equals: `#${requestedOrder}`, mode: "insensitive" } },
+            ],
+          },
+          select: { id: true },
+        });
+        authorizedForOrder = Boolean(ownedReturnForOrder);
+      }
+      if (!authorizedForOrder) {
+        return withCors(Response.json({ fyndData: null, returnEnrichments: {} }), request);
+      }
+
       const orderNumber = String(orderName).replace(/^#/, "");
 
       // ── Search strategy ordering ───────────────────────────────────────────────
@@ -186,7 +239,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const returnEnrichments: Record<string, unknown> = {};
     if (type === "returns" && Array.isArray(returnIds) && returnIds.length > 0) {
-      const ids = returnIds.slice(0, 10).map(String);
+      const ids = returnIds
+        .slice(0, 10)
+        .map(String)
+        .filter((id) => matchedReturnIds.includes(id));
+      if (ids.length === 0) {
+        return withCors(Response.json({ fyndData: null, returnEnrichments: {} }), request);
+      }
       const returnsRaw = await prisma.returnCase.findMany({
         where: { id: { in: ids }, shopId: shopRecord.id },
         select: {
@@ -262,7 +321,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return withCors(Response.json({ fyndData, returnEnrichments }), request);
   } catch (err) {
-    console.error("Portal fynd-enrich:", err);
+    portalLogger.error({ err }, "Portal Fynd enrichment failed");
     return withCors(Response.json({ fyndData: null, returnEnrichments: {} }), request);
   }
 };

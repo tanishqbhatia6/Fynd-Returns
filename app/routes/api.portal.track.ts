@@ -1,11 +1,12 @@
 /**
- * Unauthenticated portal track endpoint.
- * GET /api/portal/track?shop=&returnRequestNo=&email=  (OR phone=)
+ * Verified portal track endpoint.
+ * GET /api/portal/track?shop=&returnRequestNo=&portalToken=&sessionId=
  *
  * Returns public-safe fields only: status, refundStatus, fyndReturnNo, returnAwb,
  * createdAt, notesForCustomer, returnJourney.
  *
- * Email or phone required to prevent enumeration (lightweight verification).
+ * A verified portal session is required. Email/phone matching is not strong enough
+ * for sensitive return status lookups.
  * Rate-limited.
  */
 import type { LoaderFunctionArgs } from "react-router";
@@ -14,6 +15,16 @@ import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { extractFyndJourney } from "../lib/fynd-payload.server";
 import { buildFyndJourneyFilterForReturn } from "../lib/fynd-return-scope.server";
+import { verifyPortalSession } from "../lib/portal-auth.server";
+
+function parseMatchedReturnIds(raw: string | null | undefined): string[] {
+  try {
+    const parsed = JSON.parse(raw || "[]");
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
@@ -26,8 +37,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const shopParam = url.searchParams.get("shop");
   const returnRequestNo = (url.searchParams.get("returnRequestNo") ?? "").trim();
-  const emailParam = (url.searchParams.get("email") ?? "").trim().toLowerCase();
-  const phoneParam = (url.searchParams.get("phone") ?? "").trim().replace(/[^\d+]/g, "");
+  const portalToken = url.searchParams.get("portalToken");
+  const sessionId = url.searchParams.get("sessionId");
 
   if (!shopParam) {
     return withCors(Response.json({ error: "shop is required" }, { status: 400 }), request);
@@ -38,12 +49,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       request,
     );
   }
-  if (!emailParam && !phoneParam) {
-    return withCors(
-      Response.json({ error: "email or phone is required" }, { status: 400 }),
-      request,
-    );
-  }
 
   const shopDomain = shopParam.includes(".") ? shopParam : `${shopParam}.myshopify.com`;
   const shopRecord = await prisma.shop.findUnique({ where: { shopDomain } });
@@ -51,25 +56,52 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return withCors(Response.json({ error: "Shop not found" }, { status: 404 }), request);
   }
 
+  const verifiedSession = await verifyPortalSession(prisma, {
+    portalToken,
+    sessionId,
+    shopId: shopRecord.id,
+  });
+  if (!verifiedSession) {
+    return withCors(
+      Response.json({ error: "Verified customer session is required" }, { status: 401 }),
+      request,
+    );
+  }
+
   const rc = await prisma.returnCase.findFirst({
     where: {
       shopId: shopRecord.id,
       returnRequestNo: { equals: returnRequestNo, mode: "insensitive" },
     },
-    include: { items: true },
+    select: {
+      id: true,
+      returnRequestNo: true,
+      status: true,
+      refundStatus: true,
+      resolutionType: true,
+      fyndReturnId: true,
+      fyndReturnNo: true,
+      fyndShipmentId: true,
+      fyndPayloadJson: true,
+      returnAwb: true,
+      notesForCustomer: true,
+      createdAt: true,
+      updatedAt: true,
+      items: {
+        select: {
+          fyndBagId: true,
+          fyndShipmentId: true,
+        },
+      },
+    },
   });
 
   if (!rc) {
     return withCors(Response.json({ error: "Return not found" }, { status: 404 }), request);
   }
 
-  // Verify caller knows email or phone (anti-enumeration)
-  const emailMatch = emailParam && rc.customerEmailNorm && rc.customerEmailNorm === emailParam;
-  const phoneMatch =
-    phoneParam &&
-    rc.customerPhoneNorm &&
-    rc.customerPhoneNorm.replace(/[^\d+]/g, "") === phoneParam;
-  if (!emailMatch && !phoneMatch) {
+  const matchedReturnIds = parseMatchedReturnIds(verifiedSession.matchedReturnIds);
+  if (!matchedReturnIds.includes(rc.id)) {
     return withCors(Response.json({ error: "Return not found" }, { status: 404 }), request);
   }
 

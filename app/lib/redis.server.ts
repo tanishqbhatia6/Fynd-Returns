@@ -1,9 +1,11 @@
 /**
- * Optional Redis client.
+ * Redis client.
  *
  * Activation:
- *   - If REDIS_URL is unset, getRedis() returns null and consumers fall back
- *     to their in-process implementation.
+ *   - In production, REDIS_URL is mandatory unless REQUIRE_REDIS=false is set
+ *     as a temporary emergency rollback.
+ *   - Outside production, if REDIS_URL is unset, getRedis() returns null and
+ *     consumers fall back to their in-process implementation.
  *   - If REDIS_URL is set but Redis is unreachable, the client logs once and
  *     also returns null on each call (lazy reconnect handled by ioredis).
  *
@@ -14,8 +16,18 @@
  *   - One log line on first failure, not per-request noise.
  */
 import { Redis } from "ioredis";
+import { redisFailureCounter } from "./observability/metrics.server";
+import { redisLogger } from "./observability/logger.server";
 
 type RedisClient = Redis;
+
+if (
+  process.env.NODE_ENV === "production" &&
+  String(process.env.REQUIRE_REDIS ?? "true").toLowerCase() !== "false" &&
+  !process.env.REDIS_URL?.trim()
+) {
+  throw new Error("REDIS_URL is required in production. Set REQUIRE_REDIS=false only for a temporary emergency rollback.");
+}
 
 let client: RedisClient | null = null;
 let initAttempted = false;
@@ -48,25 +60,24 @@ export function getRedis(): RedisClient | null {
     try {
       client = buildClient(url);
       client.on("error", (err: unknown) => {
+        redisFailureCounter.add(1, { operation: "connection" });
         if (!lastFailureLogged) {
           lastFailureLogged = true;
           // First-error suppression: log once, then go quiet to avoid log
           // spam if Redis stays down. Reset on reconnect.
 
-          console.warn(
-            "[redis] connection error (will retry):",
-            err instanceof Error ? err.message : String(err),
-          );
+          redisLogger.warn({ err }, "Redis connection error; will retry");
         }
       });
       client.on("ready", () => {
         if (lastFailureLogged) {
-          console.info("[redis] reconnected");
+          redisLogger.info("Redis reconnected");
           lastFailureLogged = false;
         }
       });
     } catch (err) {
-      console.warn("[redis] failed to construct client; falling back to in-memory:", err);
+      redisFailureCounter.add(1, { operation: "construct" });
+      redisLogger.warn({ err }, "Redis client construction failed; falling back to in-memory");
       client = null;
     }
   }

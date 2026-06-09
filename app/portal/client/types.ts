@@ -143,6 +143,9 @@ export type LookupResponse = {
 };
 
 export type OrderResponse = {
+  requiresOtp?: boolean;
+  sessionId?: string;
+  contactHint?: string;
   order?: PortalOrder;
   existingReturns?: PortalReturn[];
   activeReturns?: PortalReturn[];
@@ -281,5 +284,6 @@ declare global {
     __RPM_FEATURES__?: PortalFeatures;
     __RPM_PORTAL_CSRF__?: string;
     __RPM_AUTH_TOKEN__?: string;
+    __RPM_AUTH_SESSION_ID__?: string;
   }
 }

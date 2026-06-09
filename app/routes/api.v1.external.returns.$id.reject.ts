@@ -4,6 +4,7 @@ import { apiSuccess, apiError, checkPerKeyRateLimit } from "../lib/external-api-
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { dispatchWebhookEvent } from "../lib/webhook-dispatch.server";
 import { createAdminClient, closeShopifyReturnBestEffort } from "../lib/shopify-admin.server";
+import { externalApiLogger } from "../lib/observability/logger.server";
 import prisma from "../db.server";
 
 const TERMINAL_STATUSES = ["approved", "rejected", "completed", "cancelled"];
@@ -109,7 +110,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       message: "Return rejected successfully",
     });
   } catch (err) {
-    console.error("[external.returns.reject]", err);
+    externalApiLogger.error(
+      {
+        endpoint: "external.returns.reject",
+        shopId: auth.shopId,
+        keyId: auth.keyId,
+        returnId: id,
+        err,
+      },
+      "External return reject failed",
+    );
     return apiError(500, "INTERNAL_ERROR", "Failed to reject return");
   }
 };

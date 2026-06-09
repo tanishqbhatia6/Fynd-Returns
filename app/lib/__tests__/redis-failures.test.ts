@@ -16,6 +16,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const ORIG_ENV = { ...process.env };
 
+const { redisLoggerMock } = vi.hoisted(() => ({
+  redisLoggerMock: {
+    warn: vi.fn(),
+    info: vi.fn(),
+  },
+}));
+
 // A tiny stub that mimics the parts of ioredis we exercise: constructor,
 // EventEmitter, and a quit() that may resolve or reject. Each instance
 // exposes the constructor args so the test can assert on them.
@@ -42,6 +49,10 @@ vi.mock("ioredis", () => ({
   Redis: FakeRedis,
 }));
 
+vi.mock("../observability/logger.server", () => ({
+  redisLogger: redisLoggerMock,
+}));
+
 beforeEach(() => {
   vi.resetModules();
   process.env = { ...ORIG_ENV };
@@ -49,6 +60,7 @@ beforeEach(() => {
   FakeRedis.instances = [];
   FakeRedis.throwOnConstruct = false;
   vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 afterEach(() => {
@@ -71,11 +83,14 @@ describe("redis singleton — failure modes", () => {
   it("constructor throw is caught; getRedis() returns null instead of crashing", async () => {
     process.env.REDIS_URL = "redis://localhost:6379";
     FakeRedis.throwOnConstruct = true;
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { getRedis } = await import("../redis.server");
     expect(getRedis()).toBeNull();
-    expect(warn).toHaveBeenCalled();
-    expect(String(warn.mock.calls[0]?.[0] ?? "")).toContain("[redis]");
+    expect(redisLoggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        err: expect.objectContaining({ message: "constructor blew up" }),
+      }),
+      "Redis client construction failed; falling back to in-memory",
+    );
   });
 
   it("client is built with lazyConnect:true (no eager connection)", async () => {
@@ -118,58 +133,60 @@ describe("redis singleton — failure modes", () => {
 
   it("error event is logged once; subsequent errors are suppressed", async () => {
     process.env.REDIS_URL = "redis://localhost:6379";
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { getRedis, closeRedis } = await import("../redis.server");
     const c = getRedis() as unknown as FakeRedis;
     c.emit("error", new Error("ECONNREFUSED #1"));
     c.emit("error", new Error("ECONNREFUSED #2"));
     c.emit("error", new Error("ECONNREFUSED #3"));
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0][0])).toContain("[redis] connection error");
-    expect(String(warn.mock.calls[0][1])).toContain("ECONNREFUSED #1");
+    expect(redisLoggerMock.warn).toHaveBeenCalledTimes(1);
+    expect(redisLoggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        err: expect.objectContaining({ message: "ECONNREFUSED #1" }),
+      }),
+      "Redis connection error; will retry",
+    );
     await closeRedis();
   });
 
   it("non-Error error payload is stringified (no crash on weird emit)", async () => {
     process.env.REDIS_URL = "redis://localhost:6379";
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { getRedis, closeRedis } = await import("../redis.server");
     const c = getRedis() as unknown as FakeRedis;
     c.emit("error", "weird-string-error");
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0][1])).toBe("weird-string-error");
+    expect(redisLoggerMock.warn).toHaveBeenCalledTimes(1);
+    expect(redisLoggerMock.warn).toHaveBeenCalledWith(
+      { err: "weird-string-error" },
+      "Redis connection error; will retry",
+    );
     await closeRedis();
   });
 
   it("'ready' event resets the failure flag and logs reconnect once", async () => {
     process.env.REDIS_URL = "redis://localhost:6379";
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const { getRedis, closeRedis } = await import("../redis.server");
     const c = getRedis() as unknown as FakeRedis;
 
     // First failure → one warn.
     c.emit("error", new Error("boom"));
-    expect(warn).toHaveBeenCalledTimes(1);
+    expect(redisLoggerMock.warn).toHaveBeenCalledTimes(1);
 
     // Reconnect → info log, flag reset.
     c.emit("ready");
-    expect(info).toHaveBeenCalledTimes(1);
-    expect(String(info.mock.calls[0][0])).toContain("[redis] reconnected");
+    expect(redisLoggerMock.info).toHaveBeenCalledTimes(1);
+    expect(redisLoggerMock.info).toHaveBeenCalledWith("Redis reconnected");
 
     // Next failure should log again because the flag was reset.
     c.emit("error", new Error("boom-again"));
-    expect(warn).toHaveBeenCalledTimes(2);
+    expect(redisLoggerMock.warn).toHaveBeenCalledTimes(2);
     await closeRedis();
   });
 
   it("'ready' event when no prior failure does not emit a reconnect log", async () => {
     process.env.REDIS_URL = "redis://localhost:6379";
-    const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const { getRedis, closeRedis } = await import("../redis.server");
     const c = getRedis() as unknown as FakeRedis;
     c.emit("ready");
-    expect(info).not.toHaveBeenCalled();
+    expect(redisLoggerMock.info).not.toHaveBeenCalled();
     await closeRedis();
   });
 

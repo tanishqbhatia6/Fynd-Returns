@@ -99,6 +99,15 @@ vi.mock("../../lib/rate-limit.server", () => ({
 }));
 vi.mock("../../lib/portal-auth.server", () => ({
   verifyPortalCsrfToken: verifyPortalCsrfMock,
+  verifyPortalSession: vi.fn(async () => ({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "shopper@example.com",
+    matchedReturnIds: null,
+  })),
+  hashLookupValue: vi.fn(() => "hash"),
 }));
 vi.mock("../../lib/shopify-admin.server", () => ({
   fetchOrder: fetchOrderMock,
@@ -221,6 +230,7 @@ beforeEach(() => {
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
   fetchOrderMock.mockReset().mockResolvedValue({
     id: "gid://shopify/Order/1",
+    email: "shopper@example.com",
     displayFulfillmentStatus: "FULFILLED",
     displayFinancialStatus: "PAID",
     sourceName: "web",
@@ -762,6 +772,7 @@ describe("portal.create-return — discount code error catch (line 94)", () => {
         shop: "store",
         shopifyOrderName: "1001",
         orderId: "gid://shopify/Order/1",
+        customerEmail: "shopper@example.com",
         acceptOffer: true,
         items: [{ lineItemId: "li-1", qty: 1 }],
       }),

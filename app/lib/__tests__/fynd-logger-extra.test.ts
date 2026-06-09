@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createFyndLogger } from "../fynd-logger.server";
 
+const { fyndLoggerMock } = vi.hoisted(() => ({
+  fyndLoggerMock: {
+    debug: vi.fn(),
+  },
+}));
+
+vi.mock("../observability/logger.server", () => ({
+  fyndLogger: fyndLoggerMock,
+}));
+
 /**
  * Extra coverage for createFyndLogger:
  * - redaction of cookie/auth/credential-like patterns
@@ -8,14 +18,12 @@ import { createFyndLogger } from "../fynd-logger.server";
  * - independence of multiple logger instances
  */
 describe("createFyndLogger — extra redaction & passthrough", () => {
-  let consoleSpy: ReturnType<typeof vi.spyOn>;
-
   beforeEach(() => {
-    consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
-    consoleSpy.mockRestore();
+    vi.restoreAllMocks();
   });
 
   function logOne(detail: string | undefined, step = "step", message = "msg") {
@@ -111,12 +119,12 @@ describe("createFyndLogger — extra redaction & passthrough", () => {
     expect(logs[0].detail).toContain("[REDACTED]");
   });
 
-  // ---------- Console mirroring & instance independence ----------
+  // ---------- Structured logger mirroring & instance independence ----------
 
-  it("mirrors redacted detail (not the raw secret) to console", () => {
+  it("mirrors redacted detail (not the raw secret) to the structured logger", () => {
     const { log } = createFyndLogger();
     log("step", "msg", "clientSecret=should-not-appear");
-    const calls = consoleSpy.mock.calls.flat().join("\n");
+    const calls = JSON.stringify(fyndLoggerMock.debug.mock.calls);
     expect(calls).not.toContain("should-not-appear");
     expect(calls).toContain("[REDACTED]");
   });

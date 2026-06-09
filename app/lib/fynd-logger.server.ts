@@ -1,3 +1,5 @@
+import { fyndLogger } from "./observability/logger.server";
+
 /**
  * @deprecated Use `app/lib/observability/logger.server.ts` instead.
  * This module is superseded by the structured Pino logger with OTel trace
@@ -33,8 +35,7 @@ export function createFyndLogger() {
     const ts = new Date().toISOString();
     const safeDetail = redact(detail);
     logs.push({ ts, step, message, detail: safeDetail });
-    const consoleDetail = safeDetail ? ` | ${safeDetail}` : "";
-    console.log(`[Fynd ${step}] ${message}${consoleDetail}`);
+    fyndLogger.debug({ step, detail: safeDetail }, message);
   };
   return { logs, log };
 }

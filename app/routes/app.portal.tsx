@@ -6,6 +6,7 @@ import prisma from "../db.server";
 import { parsePortalTheme } from "../lib/portal-theme.server";
 import { parsePortalConfig } from "../lib/portal-config.server";
 import { AppPage } from "../components/AppPage";
+import { portalLogger } from "../lib/observability/logger.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -48,7 +49,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       activeReturns,
     };
   } catch (err) {
-    console.error("[app.portal] Loader error:", err);
+    portalLogger.error({ err, shopDomain: session.shop }, "Portal admin loader failed");
     // defensive loader catch fallback
     /* v8 ignore start */
     return {

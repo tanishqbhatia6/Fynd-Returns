@@ -21,8 +21,9 @@
  */
 
 import { recordRateLimitCheck } from "./observability/security.server";
-import { rateLimiterKeysActive } from "./observability/metrics.server";
+import { rateLimiterKeysActive, redisFailureCounter } from "./observability/metrics.server";
 import { getRedis } from "./redis.server";
+import { securityLogger } from "./observability/logger.server";
 
 const DEFAULT_WINDOW_MS = 60_000;
 const memStore = new Map<string, { count: number; resetAt: number }>();
@@ -44,9 +45,9 @@ if (
   Number(process.env.WEB_CONCURRENCY ?? "1") > 1 &&
   !process.env.REDIS_URL
 ) {
-  console.warn(
-    "[rate-limit] WEB_CONCURRENCY>1 detected with no REDIS_URL. In-memory limiter is per-replica; " +
-      "effective per-IP limit is maxRequests × replica count. Set REDIS_URL for cluster-wide enforcement.",
+  securityLogger.warn(
+    { webConcurrency: process.env.WEB_CONCURRENCY ?? "1" },
+    "WEB_CONCURRENCY>1 detected with no REDIS_URL. In-memory rate limiting is per-replica.",
   );
 }
 
@@ -141,12 +142,13 @@ async function checkRedis(key: string, config: RateLimitConfig): Promise<RateLim
       retryAfterMs: 0,
     };
   } catch (err) {
+    redisFailureCounter.add(1, { operation: "rate_limit_eval" });
     if (!redisFailureLogged) {
       redisFailureLogged = true;
 
-      console.warn(
-        "[rate-limit] Redis unavailable on this request; falling back to in-memory.",
-        err instanceof Error ? err.message : err,
+      securityLogger.warn(
+        { err },
+        "Rate limiter Redis unavailable on this request; falling back to in-memory",
       );
     }
     return null;

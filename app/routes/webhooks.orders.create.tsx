@@ -2,6 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import shopifyApp, { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { extractAffiliateOrderId } from "../lib/shopify-admin.server";
+import { webhookLogger } from "../lib/observability/logger.server";
 
 /**
  * Shopify orders/create webhook handler.
@@ -43,10 +44,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // status. Wrap every other error so we return 200 and log properly.
     if (err instanceof Response) throw err;
     /* v8 ignore start - defensive Error narrowing in authenticate failure path */
-    console.error("[webhook:orders/create] authenticate failed", {
-      error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-    });
+    webhookLogger.error(
+      { topic: "ORDERS_CREATE", err },
+      "Order create webhook authentication failed",
+    );
     return new Response();
     /* v8 ignore stop */
   }
@@ -103,12 +104,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
     } catch (err) {
       /* v8 ignore start - defensive Error narrowing in catch */
-      console.error("[webhook:orders/create] metafield write failed", {
-        shop,
-        orderName,
-        fyndOrderId,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      webhookLogger.error(
+        { topic: "ORDERS_CREATE", shop, orderName, fyndOrderId, err },
+        "Order create metafield write failed",
+      );
       /* v8 ignore stop */
     }
 
@@ -135,10 +134,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   } catch (err) {
     /* v8 ignore start - defensive Error narrowing in outer catch */
-    console.error("[webhook:orders/create]", {
-      error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-    });
+    webhookLogger.error({ topic: "ORDERS_CREATE", shop, err }, "Order create webhook failed");
     /* v8 ignore stop */
   }
 

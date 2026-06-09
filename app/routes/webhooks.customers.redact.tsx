@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { webhookLogger } from "../lib/observability/logger.server";
 
 /**
  * GDPR: customers/redact
@@ -32,8 +33,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // so their PII was never deleted. Now we also match by normalized phone.
   const customerPhone = normalizePhone(payload.customer?.phone ?? null);
 
-  console.log(
-    `[webhooks.customers.redact] shop=${shop} customerId=${customerId} hasEmail=${!!customerEmail} hasPhone=${!!customerPhone}`,
+  webhookLogger.info(
+    {
+      topic: "CUSTOMERS_REDACT",
+      shop,
+      hasCustomerId: Boolean(customerId),
+      hasCustomerEmail: Boolean(customerEmail),
+      hasCustomerPhone: Boolean(customerPhone),
+    },
+    "Shopify customer redact webhook received",
   );
 
   try {
@@ -41,7 +49,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       where: { shopDomain: shop },
     });
     if (!shopRecord) {
-      console.log(`[webhooks.customers.redact] Shop not found: ${shop}, nothing to redact`);
+      webhookLogger.info({ topic: "CUSTOMERS_REDACT", shop }, "Shop not found for customer redact");
       return new Response();
     }
 
@@ -55,7 +63,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (customerPhone) conditions.push({ customerPhoneNorm: customerPhone });
 
     if (conditions.length === 0) {
-      console.log(`[webhooks.customers.redact] No identifiers provided, skipping`);
+      webhookLogger.info(
+        { topic: "CUSTOMERS_REDACT", shop },
+        "Customer redact skipped because no identifiers were provided",
+      );
       return new Response();
     }
 
@@ -67,7 +78,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     if (returnCases.length === 0) {
-      console.log(`[webhooks.customers.redact] No return cases found for customer in shop=${shop}`);
+      webhookLogger.info(
+        { topic: "CUSTOMERS_REDACT", shop },
+        "No return cases found for customer redact",
+      );
       return new Response();
     }
 
@@ -147,11 +161,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
     }
 
-    console.log(
-      `[webhooks.customers.redact] Redacted ${returnCases.length} return case(s) for customer in shop=${shop}`,
+    webhookLogger.info(
+      { topic: "CUSTOMERS_REDACT", shop, returnCaseCount: returnCases.length },
+      "Shopify customer redact completed",
     );
   } catch (err) {
-    console.error("[webhooks.customers.redact] Error processing redaction:", err);
+    webhookLogger.error({ topic: "CUSTOMERS_REDACT", shop, err }, "Customer redact failed");
   }
 
   return new Response();

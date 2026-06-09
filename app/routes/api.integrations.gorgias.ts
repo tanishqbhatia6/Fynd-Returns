@@ -39,28 +39,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
-  // Validate API key if configured. Stored value is encrypted (post P0 rollout); the
-  // tolerant decrypt returns plaintext as-is for any pre-rollout rows. Comparison is
-  // timing-safe to avoid leaking the prefix via string-equality timing.
-  if (shop.settings.gorgiasApiKey) {
-    /* v8 ignore start */
-    // defensive: decrypt always returns string; ?? "" fallback unreachable
-    const storedPlain = decryptIfEncrypted(shop.settings.gorgiasApiKey) ?? "";
-    /* v8 ignore stop */
-    let ok = false;
-    try {
-      const a = Buffer.from(apiKey, "utf8");
-      const b = Buffer.from(storedPlain, "utf8");
-      ok = a.length === b.length && crypto.timingSafeEqual(a, b);
-    } catch {
-      ok = false;
-    }
-    if (!ok) {
-      return new Response(renderCard("Unauthorized", "Invalid API key.", []), {
-        status: 401,
-        headers: { "Content-Type": "text/html" },
-      });
-    }
+  if (!shop.settings.gorgiasApiKey) {
+    return new Response(renderCard("Unauthorized", "Gorgias API key is not configured.", []), {
+      status: 403,
+      headers: { "Content-Type": "text/html" },
+    });
+  }
+
+  // Stored value is encrypted (post P0 rollout); the tolerant decrypt returns
+  // plaintext as-is for any pre-rollout rows. Comparison is timing-safe to avoid
+  // leaking the prefix via string-equality timing.
+  /* v8 ignore start */
+  // defensive: decrypt always returns string; ?? "" fallback unreachable
+  const storedPlain = decryptIfEncrypted(shop.settings.gorgiasApiKey) ?? "";
+  /* v8 ignore stop */
+  let ok: boolean;
+  try {
+    const a = Buffer.from(apiKey, "utf8");
+    const b = Buffer.from(storedPlain, "utf8");
+    ok = a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    ok = false;
+  }
+  if (!ok) {
+    return new Response(renderCard("Unauthorized", "Invalid API key.", []), {
+      status: 401,
+      headers: { "Content-Type": "text/html" },
+    });
   }
 
   // Find returns by email or order
@@ -148,12 +153,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const statusColor = getStatusColor(r.status);
     const riskBadge =
       r.fraudRiskLevel && r.fraudRiskLevel !== "low"
-        ? `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:${getRiskColor(r.fraudRiskLevel).bg};color:${getRiskColor(r.fraudRiskLevel).text};margin-left:6px">${r.fraudRiskLevel.toUpperCase()} RISK</span>`
+        ? `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:${getRiskColor(r.fraudRiskLevel).bg};color:${getRiskColor(r.fraudRiskLevel).text};margin-left:6px">${escapeHtml(r.fraudRiskLevel.toUpperCase())} RISK</span>`
         : "";
     const giftBadge = r.isGiftReturn
       ? `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:#EDE9FE;color:#7C3AED;margin-left:6px">GIFT</span>`
       : "";
-    const items = r.items.map((i) => `${i.title} (x${i.qty})`).join(", ");
+    const items = r.items.map((i) => `${escapeHtml(i.title)} (x${escapeHtml(i.qty)})`).join(", ");
     /* v8 ignore start */
     // defensive: resolutionType nullish fallback in card template
     const resolution = (r.resolutionType ?? "").replace(/_/g, " ");
@@ -162,11 +167,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return `
       <div style="padding:12px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <a href="${appUrl}/app/returns/${r.id}" target="_blank" style="font-weight:700;font-size:13px;color:#3b82f6;text-decoration:none">${r.returnRequestNo || r.id.slice(0, 8)}</a>
-          <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${statusColor.bg};color:${statusColor.text}">${r.status.toUpperCase()}</span>
+          <a href="${escapeHtml(appUrl)}/app/returns/${encodeURIComponent(r.id)}" target="_blank" style="font-weight:700;font-size:13px;color:#3b82f6;text-decoration:none">${escapeHtml(r.returnRequestNo || r.id.slice(0, 8))}</a>
+          <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${statusColor.bg};color:${statusColor.text}">${escapeHtml(r.status.toUpperCase())}</span>
         </div>
         <div style="font-size:12px;color:#64748b;margin-bottom:4px">
-          Order: ${r.shopifyOrderName} · ${resolution}${riskBadge}${giftBadge}
+          Order: ${escapeHtml(r.shopifyOrderName)} · ${escapeHtml(resolution)}${riskBadge}${giftBadge}
         </div>
         <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">${items || "No items"}</div>
         <div style="font-size:11px;color:#94a3b8">${new Date(r.createdAt).toLocaleDateString()}</div>
@@ -193,10 +198,27 @@ function renderCard(title: string, subtitle: string, items: string[]): string {
   .sub { font-size: 12px; color: #64748b; margin: 0 0 12px; }
 </style></head>
 <body>
-  <h3>${title}</h3>
-  <p class="sub">${subtitle}</p>
+  <h3>${escapeHtml(title)}</h3>
+  <p class="sub">${escapeHtml(subtitle)}</p>
   ${items.join("\n")}
 </body></html>`;
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => {
+    switch (ch) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      default:
+        return "&#39;";
+    }
+  });
 }
 
 // defensive: status-color helper not exercised by all status values in unit tests

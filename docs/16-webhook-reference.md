@@ -175,7 +175,7 @@ These Fynd statuses update `ReturnCase.fyndCurrentStatus`:
 
 ### HMAC Verification
 
-Fynd webhook HMAC verification is optional. When the `X-Fynd-Signature` header is present, it can be validated against the stored Fynd credentials. Currently, the handler processes all incoming payloads (defense in depth via return case matching).
+Fynd webhook HMAC verification is required. Shop-scoped webhook URLs validate against the per-shop secret; the global `/api/webhooks/fynd` receiver validates against `FYND_WEBHOOK_SECRET` and production startup fails if that secret is missing or weak. Missing or invalid signatures are rejected before processing.
 
 ### Deduplication
 

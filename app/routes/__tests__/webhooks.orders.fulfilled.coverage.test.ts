@@ -21,12 +21,14 @@ const {
   shopifyModuleMock,
   extractAffiliateOrderIdMock,
   graphqlMock,
+  webhookLoggerMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateWebhookMock: vi.fn(),
   shopifyModuleMock: { unauthenticated: { admin: vi.fn() } },
   extractAffiliateOrderIdMock: vi.fn(),
   graphqlMock: vi.fn(),
+  webhookLoggerMock: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -37,6 +39,9 @@ vi.mock("../../shopify.server", () => ({
 }));
 vi.mock("../../lib/shopify-admin.server", () => ({
   extractAffiliateOrderId: extractAffiliateOrderIdMock,
+}));
+vi.mock("../../lib/observability/logger.server", () => ({
+  webhookLogger: webhookLoggerMock,
 }));
 
 import { action } from "../webhooks.orders.fulfilled";
@@ -55,6 +60,10 @@ beforeEach(() => {
   shopifyModuleMock.unauthenticated.admin.mockReset();
   extractAffiliateOrderIdMock.mockReset();
   graphqlMock.mockReset();
+  webhookLoggerMock.error.mockClear();
+  webhookLoggerMock.warn.mockClear();
+  webhookLoggerMock.info.mockClear();
+  webhookLoggerMock.debug.mockClear();
   shopifyModuleMock.unauthenticated.admin.mockResolvedValue({
     admin: { graphql: graphqlMock },
   });
@@ -132,7 +141,6 @@ describe("webhooks.orders.fulfilled — Fynd metafield + mapping backfill", () =
   });
 
   it("swallows GraphQL mutation errors and still upserts mapping", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     authenticateWebhookMock.mockResolvedValueOnce({
       shop: "shop.myshopify.com",
       payload: {
@@ -149,15 +157,19 @@ describe("webhooks.orders.fulfilled — Fynd metafield + mapping backfill", () =
     const res = await callAction();
     expect(res.status).toBe(200);
     expect(prismaMock.fyndOrderMapping.upsert).toHaveBeenCalledTimes(1);
-    expect(errSpy).toHaveBeenCalledWith(
-      "[webhook:orders/fulfilled] metafield write failed",
-      expect.objectContaining({ fyndOrderId: "F-4" }),
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "ORDERS_FULFILLED",
+        shop: "shop.myshopify.com",
+        orderName: "1004",
+        fyndOrderId: "F-4",
+        err: expect.objectContaining({ message: "graphql 500" }),
+      }),
+      "Order fulfilled metafield write failed",
     );
-    errSpy.mockRestore();
   });
 
   it("swallows mapping upsert errors and continues to returnCase loop", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     authenticateWebhookMock.mockResolvedValueOnce({
       shop: "shop.myshopify.com",
       payload: {
@@ -173,12 +185,17 @@ describe("webhooks.orders.fulfilled — Fynd metafield + mapping backfill", () =
 
     const res = await callAction();
     expect(res.status).toBe(200);
-    expect(errSpy).toHaveBeenCalledWith(
-      "[webhook:orders/fulfilled] mapping upsert failed",
-      expect.objectContaining({ fyndOrderId: "F-5" }),
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "ORDERS_FULFILLED",
+        shop: "shop.myshopify.com",
+        orderName: "1005",
+        fyndOrderId: "F-5",
+        err: expect.objectContaining({ message: "unique violation" }),
+      }),
+      "Order fulfilled mapping upsert failed",
     );
     expect(prismaMock.returnCase.findMany).toHaveBeenCalledTimes(2);
-    errSpy.mockRestore();
   });
 
   it("uses synthesized #orderName when raw name is empty after trimming '#'", async () => {
@@ -332,7 +349,6 @@ describe("webhooks.orders.fulfilled — returnCase event loop", () => {
   });
 
   it("logs and swallows errors thrown inside the event loop", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     authenticateWebhookMock.mockResolvedValueOnce({
       shop: "shop.myshopify.com",
       payload: {
@@ -348,10 +364,13 @@ describe("webhooks.orders.fulfilled — returnCase event loop", () => {
 
     const res = await callAction();
     expect(res.status).toBe(200);
-    expect(errSpy).toHaveBeenCalledWith(
-      "[webhook:orders/fulfilled]",
-      expect.objectContaining({ error: "findFirst exploded" }),
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "ORDERS_FULFILLED",
+        shop: "shop.myshopify.com",
+        err: expect.objectContaining({ message: "findFirst exploded" }),
+      }),
+      "Order fulfilled webhook failed",
     );
-    errSpy.mockRestore();
   });
 });

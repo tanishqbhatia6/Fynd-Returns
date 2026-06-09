@@ -18,6 +18,7 @@ import { AppPage } from "../components/AppPage";
 import { Banner } from "../components/Banner";
 import { Toast } from "../components/Toast";
 import { FilterChips, type FilterChip } from "../components/FilterChips";
+import { appLogger } from "../lib/observability/logger.server";
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
@@ -137,7 +138,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shopTimezone: shop?.settings?.shopTimezone ?? "UTC",
     };
   } catch (err) {
-    console.error("Returns loader error:", err);
+    appLogger.error({ err, shopDomain: session.shop, shopId: shop.id }, "Returns list loader failed");
     return {
       returns: [],
       query,

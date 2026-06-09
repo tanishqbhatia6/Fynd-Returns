@@ -9,7 +9,7 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
 const {
   prismaMock,
-  verifyPortalTokenMock,
+  verifyPortalSessionMock,
   verifyPortalCsrfTokenMock,
   checkRateLimitMock,
   parsePortalConfigMock,
@@ -17,7 +17,7 @@ const {
   dispatchWebhookEventMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  verifyPortalTokenMock: vi.fn(),
+  verifyPortalSessionMock: vi.fn(),
   verifyPortalCsrfTokenMock: vi.fn(() => true),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
   parsePortalConfigMock: vi.fn(() => ({ allowReturnCancellation: true })),
@@ -30,7 +30,7 @@ Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
 vi.mock("../../lib/portal-auth.server", () => ({
-  verifyPortalToken: verifyPortalTokenMock,
+  verifyPortalSession: verifyPortalSessionMock,
   verifyPortalCsrfToken: verifyPortalCsrfTokenMock,
 }));
 vi.mock("../../lib/portal-cors.server", () => ({
@@ -63,7 +63,14 @@ function jsonReq(body: unknown) {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  verifyPortalTokenMock.mockReset().mockReturnValue({ sessionId: "sess-1", shopId: "shop-1" });
+  verifyPortalSessionMock.mockReset().mockResolvedValue({
+    id: "sess-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "u@x.com",
+    matchedReturnIds: JSON.stringify(["rc-1"]),
+  });
   verifyPortalCsrfTokenMock.mockReset().mockReturnValue(true);
   checkRateLimitMock
     .mockReset()
@@ -73,12 +80,6 @@ beforeEach(() => {
 
 describe("api.portal.cancel-return — fallback status branch (line 263)", () => {
   it("returns 400 when returnCase.status is not terminal/auto-cancel/approved", async () => {
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
-      id: "sess-1",
-      verifiedAt: new Date(),
-      expiresAt: new Date(Date.now() + 60_000),
-      matchedReturnIds: JSON.stringify(["rc-1"]),
-    });
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
       shopDomain: "store.myshopify.com",

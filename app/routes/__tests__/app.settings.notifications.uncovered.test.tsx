@@ -905,11 +905,12 @@ describe("notifications – WhatsApp + OTP", () => {
     expect(container.querySelector("input[type='hidden'][name='whatsappApiKey']")).toBeTruthy();
   });
 
-  it("Email OTP toggle is rendered (off by default)", async () => {
+  it("Email OTP verification is locked on", async () => {
     const { container } = renderBase();
     await waitForRender(container);
     const cb = container.querySelector("input[name='portalOtpEmailEnabled']") as HTMLInputElement;
-    expect(cb.checked).toBe(false);
+    expect(cb.checked).toBe(true);
+    expect(cb.disabled).toBe(true);
     await act(async () => {
       fireEvent.click(cb);
     });
@@ -918,11 +919,12 @@ describe("notifications – WhatsApp + OTP", () => {
     });
   });
 
-  it("SMS/WhatsApp OTP toggle is rendered (off by default)", async () => {
+  it("SMS/WhatsApp OTP verification is locked on", async () => {
     const { container } = renderBase();
     await waitForRender(container);
     const cb = container.querySelector("input[name='portalOtpSmsEnabled']") as HTMLInputElement;
-    expect(cb.checked).toBe(false);
+    expect(cb.checked).toBe(true);
+    expect(cb.disabled).toBe(true);
     await act(async () => {
       fireEvent.click(cb);
     });
@@ -970,18 +972,20 @@ describe("notifications – pre-enabled WhatsApp & log filters", () => {
     expect(container.textContent).toContain("+888");
   });
 
-  it("portalOtpEmailEnabled toggle reflects loader value when true", async () => {
+  it("portalOtpEmailEnabled remains enabled for pre-enabled shops", async () => {
     const { container } = renderBase(waLoaderData);
     await waitForRender(container);
     const cb = container.querySelector("input[name='portalOtpEmailEnabled']") as HTMLInputElement;
     expect(cb.checked).toBe(true);
+    expect(cb.disabled).toBe(true);
   });
 
-  it("portalOtpSmsEnabled toggle reflects loader value when true", async () => {
+  it("portalOtpSmsEnabled remains enabled for pre-enabled shops", async () => {
     const { container } = renderBase(waLoaderData);
     await waitForRender(container);
     const cb = container.querySelector("input[name='portalOtpSmsEnabled']") as HTMLInputElement;
     expect(cb.checked).toBe(true);
+    expect(cb.disabled).toBe(true);
   });
 });
 

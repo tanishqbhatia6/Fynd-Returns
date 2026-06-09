@@ -12,9 +12,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, checkRateLimitMock } = vi.hoisted(() => ({
+const { prismaMock, checkRateLimitMock, verifyPortalSessionMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
+  verifyPortalSessionMock: vi.fn(),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -23,12 +24,21 @@ vi.mock("../../lib/rate-limit.server", () => ({
   checkRateLimit: checkRateLimitMock,
   rateLimitResponse: () => Response.json({ error: "rate" }, { status: 429 }),
 }));
+vi.mock("../../lib/portal-cors.server", () => ({
+  getPortalCorsHeaders: () => new Headers(),
+  withCors: (res: Response) => res,
+}));
+vi.mock("../../lib/portal-auth.server", () => ({
+  verifyPortalSession: verifyPortalSessionMock,
+}));
 
 import { loader } from "../api.portal.products";
 
 const origFetch = globalThis.fetch;
 function mkReq(qs: string) {
-  return new Request(`https://app.example/api/portal/products?${qs}`);
+  return new Request(
+    `https://app.example/api/portal/products?${qs}&portalToken=portal-token&sessionId=lookup-session`,
+  );
 }
 
 const shopWithExchange = {
@@ -42,6 +52,14 @@ beforeEach(() => {
   checkRateLimitMock
     .mockReset()
     .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  verifyPortalSessionMock.mockReset().mockResolvedValue({
+    id: "lookup-session",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "customer@example.com",
+    matchedReturnIds: null,
+  });
   prismaMock.shop.findUnique.mockResolvedValue(shopWithExchange);
   prismaMock.session.findFirst.mockResolvedValue({ accessToken: "tok" });
   globalThis.fetch = vi.fn();

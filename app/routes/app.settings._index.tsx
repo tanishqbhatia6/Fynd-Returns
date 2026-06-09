@@ -4,6 +4,7 @@ import { Link, useLoaderData, useRouteError, isRouteErrorResponse } from "react-
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { AppPage } from "../components/AppPage";
+import { appLogger } from "../lib/observability/logger.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -127,7 +128,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shopCurrency,
     };
   } catch (err) {
-    console.error("[app.settings._index] Loader error:", err);
+    appLogger.error({ err, shopDomain: session.shop }, "Settings overview loader failed");
     return {
       hasFynd: false,
       hasReasons: false,

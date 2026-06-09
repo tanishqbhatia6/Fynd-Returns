@@ -23,6 +23,7 @@ import {
 } from "./shopify-admin.server";
 import { sendRefundNotification } from "./notification.server";
 import { isLikelyFyndId } from "./fynd-payload.server";
+import { fyndLogger } from "./observability/logger.server";
 
 type ReturnCaseWithWebhookRelations = Prisma.ReturnCaseGetPayload<{
   include: { items: true; shop: true };
@@ -33,6 +34,14 @@ function normalizeWebhookStatusToken(status: string | null | undefined): string 
 }
 
 const IGNORED_FYND_REFUND_WEBHOOK_STATUSES = new Set(["refund_initiated"]);
+
+function logFyndMatch(strategy: string, context: Record<string, unknown>) {
+  fyndLogger.debug({ strategy, ...context }, "Fynd webhook matched return case");
+}
+
+function logFyndNonFatal(message: string, context: Record<string, unknown>) {
+  fyndLogger.warn(context, message);
+}
 
 export function isIgnoredFyndRefundWebhookStatus(status: string | null | undefined): boolean {
   const normalized = normalizeWebhookStatusToken(status);
@@ -1070,7 +1079,7 @@ async function logWebhook(params: {
     });
     /* v8 ignore stop */
   } catch (e) {
-    console.warn("[Fynd webhook] Failed to log webhook:", e);
+    logFyndNonFatal("Failed to persist Fynd webhook log", { err: e });
   }
 }
 
@@ -1139,9 +1148,10 @@ export async function processFyndWebhook(
       .filter((k) => payload[k as keyof FyndWebhookPayload] != null)
       .join(", ");
     /* v8 ignore start */ // defensive: refundStatus ?? "null" + rawPayload ?? JSON.stringify(payload) — only one path hit per test
-    console.warn(
-      `[Fynd webhook] No identifiers extracted. Payload keys: [${payloadKeys}]. Status: ${refundStatus ?? "null"}`,
-    );
+    logFyndNonFatal("Fynd webhook ignored because no identifiers were extracted", {
+      payloadKeys,
+      refundStatus,
+    });
     await logWebhook({
       shipmentId: null,
       orderId: null,
@@ -1176,7 +1186,11 @@ export async function processFyndWebhook(
         include: { items: true, shop: true },
       });
       if (returnCase) {
-        console.log(`[Fynd webhook] Matched via app return marker="${marker}"`);
+        logFyndMatch("app_return_marker", {
+          returnCaseId: returnCase.id,
+          marker,
+          shopDomain: webhookShopDomain,
+        });
         break;
       }
     }
@@ -1195,7 +1209,11 @@ export async function processFyndWebhook(
       include: { items: true, shop: true },
     });
     if (returnCase) {
-      console.log(`[Fynd webhook] Matched return/refund via return shipment id="${shipmentId}"`);
+      logFyndMatch("return_shipment_id", {
+        returnCaseId: returnCase.id,
+        shipmentId,
+        shopDomain: webhookShopDomain,
+      });
     }
   }
 
@@ -1214,7 +1232,11 @@ export async function processFyndWebhook(
       });
       if (matchedItem?.returnCase) {
         returnCase = matchedItem.returnCase;
-        console.log(`[Fynd webhook] Matched via fyndBagId="${matchedItem.fyndBagId}"`);
+        logFyndMatch("fynd_bag_id", {
+          returnCaseId: returnCase.id,
+          fyndBagId: matchedItem.fyndBagId,
+          shopDomain: webhookShopDomain,
+        });
       }
     } catch {
       /* non-fatal */
@@ -1288,7 +1310,11 @@ export async function processFyndWebhook(
         /* v8 ignore start */
         // defensive: log only fires when mapping matched; falsy branch unreachable here
         if (returnCase)
-          console.log(`[Fynd webhook] Matched via FyndOrderMapping: ${mapping.shopifyOrderName}`);
+          logFyndMatch("fynd_order_mapping", {
+            returnCaseId: returnCase.id,
+            shopifyOrderName: mapping.shopifyOrderName,
+            shopDomain: webhookShopDomain,
+          });
         /* v8 ignore stop */
       }
     } catch {
@@ -1316,7 +1342,11 @@ export async function processFyndWebhook(
       });
       if (matchedItem?.returnCase) {
         returnCase = matchedItem.returnCase;
-        console.log(`[Fynd webhook] Matched via fyndBagId="${matchedItem.fyndBagId}"`);
+        logFyndMatch("fynd_bag_id", {
+          returnCaseId: returnCase.id,
+          fyndBagId: matchedItem.fyndBagId,
+          shopDomain: webhookShopDomain,
+        });
       }
     } catch {
       /* non-fatal */
@@ -1336,9 +1366,12 @@ export async function processFyndWebhook(
             include: { items: true, shop: true },
           });
           if (returnCase) {
-            console.log(
-              `[Fynd webhook] Matched via shopifyOrderName="${candidate}" from affiliate="${affiliateOrderId}"`,
-            );
+            logFyndMatch("shopify_order_name_from_affiliate", {
+              returnCaseId: returnCase.id,
+              shopifyOrderName: candidate,
+              affiliateOrderId,
+              shopDomain: webhookShopDomain,
+            });
             break;
           }
         }
@@ -1362,9 +1395,11 @@ export async function processFyndWebhook(
         include: { items: true, shop: true },
       });
       if (returnCase)
-        console.log(
-          `[Fynd webhook] Matched via case-insensitive fyndOrderId="${affiliateOrderId}"`,
-        );
+        logFyndMatch("fynd_order_id_case_insensitive", {
+          returnCaseId: returnCase.id,
+          affiliateOrderId,
+          shopDomain: webhookShopDomain,
+        });
     } catch {
       /* non-fatal */
     }
@@ -1388,9 +1423,12 @@ export async function processFyndWebhook(
             include: { items: true, shop: true },
           });
           if (returnCase) {
-            console.log(
-              `[Fynd webhook] Matched via direct shopifyOrderName="${candidate}" from oid="${oid}"`,
-            );
+            logFyndMatch("direct_shopify_order_name", {
+              returnCaseId: returnCase.id,
+              shopifyOrderName: candidate,
+              orderIdentifier: oid,
+              shopDomain: webhookShopDomain,
+            });
             break;
           }
         }
@@ -1416,7 +1454,11 @@ export async function processFyndWebhook(
             include: { items: true, shop: true },
           });
           if (returnCase) {
-            console.log(`[Fynd webhook] Matched via shopifyOrderId="${gid}"`);
+            logFyndMatch("shopify_order_id", {
+              returnCaseId: returnCase.id,
+              shopifyOrderId: gid,
+              shopDomain: webhookShopDomain,
+            });
             break;
           }
         }
@@ -1449,9 +1491,11 @@ export async function processFyndWebhook(
                   include: { items: true, shop: true },
                 });
                 if (returnCase) {
-                  console.log(
-                    `[Fynd webhook] Matched via shop-scoped shopifyOrderName="${candidate}" (shop=${webhookShopDomain})`,
-                  );
+                  logFyndMatch("shop_scoped_shopify_order_name", {
+                    returnCaseId: returnCase.id,
+                    shopifyOrderName: candidate,
+                    shopDomain: webhookShopDomain,
+                  });
                   break;
                 }
               }
@@ -1464,7 +1508,11 @@ export async function processFyndWebhook(
               include: { items: true, shop: true },
             });
             if (returnCase)
-              console.log(`[Fynd webhook] Matched via shop-scoped fyndShipmentId="${shipmentId}"`);
+              logFyndMatch("shop_scoped_fynd_shipment_id", {
+                returnCaseId: returnCase.id,
+                shipmentId,
+                shopDomain: webhookShopDomain,
+              });
           }
           /* v8 ignore stop */
         }
@@ -1732,7 +1780,10 @@ export async function processFyndWebhook(
       }
     }
   } catch (err) {
-    console.warn("[Fynd webhook] Status backfill from bag_status_history failed:", err);
+    logFyndNonFatal("Fynd webhook status backfill from bag_status_history failed", {
+      returnCaseId: returnCase.id,
+      err,
+    });
   }
   /* v8 ignore stop */
 
@@ -1781,8 +1832,14 @@ export async function processFyndWebhook(
         }
         await prisma.returnCase.update({ where: { id: returnCase.id }, data: shopifyBackfill });
         returnCase = { ...returnCase, ...shopifyBackfill };
-        console.log(
-          `[Fynd webhook] Backfilled shopifyOrderId=${shopifyOrder.id} from affiliate_order_id="${affiliateOrderId}" for return ${returnCase.id}`,
+        fyndLogger.info(
+          {
+            returnCaseId: returnCase.id,
+            shopifyOrderId: shopifyOrder.id,
+            affiliateOrderId,
+            shopDomain,
+          },
+          "Fynd webhook backfilled Shopify order ID",
         );
       }
     } catch {
@@ -1809,8 +1866,8 @@ export async function processFyndWebhook(
       await prisma.returnCase
         .update({ where: { id: returnCase.id }, data: { fyndCurrentStatus: statusLower } })
         .catch((err) =>
-          console.warn("[Fynd webhook] Idempotent fyndCurrentStatus update failed (non-fatal):", {
-            id: returnCase.id,
+          logFyndNonFatal("Idempotent Fynd current status update failed", {
+            returnCaseId: returnCase.id,
             statusLower,
             err,
           }),
@@ -1866,10 +1923,11 @@ export async function processFyndWebhook(
           await prisma.returnEvent
             .create({ data: { returnCaseId: returnCase.id, source: "fynd_webhook", ...evt } })
             .catch((err) =>
-              console.warn(
-                "[Fynd webhook] returnEvent log failed during manual-return close (non-fatal):",
-                { id: returnCase.id, evt, err },
-              ),
+              logFyndNonFatal("Return event log failed during manual-return close", {
+                returnCaseId: returnCase.id,
+                evt,
+                err,
+              }),
             );
         },
       });
@@ -1880,7 +1938,13 @@ export async function processFyndWebhook(
           to: returnCase.customerEmailNorm,
           orderName: returnCase.shopifyOrderName || "your order",
           shopName: shopDomain.replace(".myshopify.com", ""),
-        }).catch((err) => console.warn("[fynd-webhook] Manual refund notification failed:", err));
+        }).catch((err) =>
+          logFyndNonFatal("Manual refund notification failed", {
+            returnCaseId: returnCase.id,
+            shopDomain,
+            err,
+          }),
+        );
       }
       /* v8 ignore stop */
       /* v8 ignore start */ // defensive: orderId ?? affiliateOrderId ?? orderIds[0] ?? null fallback chain + rawPayload ?? stringify — only one path hit per test
@@ -1990,8 +2054,15 @@ export async function processFyndWebhook(
             const matchByTitle = ri?.title ? shopifyByTitle.get(ri.title.toLowerCase()) : undefined;
             const match = matchBySku ?? matchByTitle;
             if (match) {
-              console.log(
-                `[fynd-webhook] Resolved lineItem "${li.id}" → "${match.id}" (sku: ${match.sku})`,
+              fyndLogger.debug(
+                {
+                  returnCaseId: returnCase.id,
+                  inputLineItemId: li.id,
+                  resolvedLineItemId: match.id,
+                  sku: match.sku,
+                  shopDomain,
+                },
+                "Fynd webhook resolved refund line item",
               );
               resolved.push({ id: match.id, quantity: li.quantity });
             }
@@ -2075,12 +2146,13 @@ export async function processFyndWebhook(
         await closeShopifyReturnBestEffort(admin, returnCase, {
           logEvent: async (evt) => {
             await prisma.returnEvent
-              .create({ data: { returnCaseId: returnCase.id, source: "fynd_webhook", ...evt } })
-              .catch((err) =>
-                console.warn(
-                  "[Fynd webhook] returnEvent log failed during refund-complete close (non-fatal):",
-                  { id: returnCase.id, evt, err },
-                ),
+            .create({ data: { returnCaseId: returnCase.id, source: "fynd_webhook", ...evt } })
+            .catch((err) =>
+                logFyndNonFatal("Return event log failed during refund-complete close", {
+                  returnCaseId: returnCase.id,
+                  evt,
+                  err,
+                }),
               );
           },
         });
@@ -2151,8 +2223,8 @@ export async function processFyndWebhook(
         await prisma.returnEvent
           .create({ data: { returnCaseId: returnCase.id, source: "fynd_webhook", ...evt } })
           .catch((err) =>
-            console.warn("[Fynd webhook] returnEvent log failed during refund close (non-fatal):", {
-              id: returnCase.id,
+            logFyndNonFatal("Return event log failed during refund close", {
+              returnCaseId: returnCase.id,
               evt,
               err,
             }),
@@ -2168,7 +2240,13 @@ export async function processFyndWebhook(
         amount: refundDetails.amount ?? undefined,
         currency: refundDetails.currency ?? undefined,
         shopName: shopDomain.replace(".myshopify.com", ""),
-      }).catch((err) => console.warn("[fynd-webhook] Refund notification failed:", err));
+      }).catch((err) =>
+        logFyndNonFatal("Refund notification failed", {
+          returnCaseId: returnCase.id,
+          shopDomain,
+          err,
+        }),
+      );
     }
     /* v8 ignore stop */
     /* v8 ignore start */ // defensive: orderId ?? affiliateOrderId ?? orderIds[0] ?? null fallback chain + rawPayload ?? stringify — only one path hit per test
@@ -2212,8 +2290,15 @@ export async function processFyndWebhook(
             if (!currentStatus || !allowedSet.has(currentStatus)) {
               autoRefundBlockedByGate = true;
               const displayAllowed = [...allowedSet].map((s) => `"${s}"`).join(", ");
-              console.log(
-                `[webhook] Auto-refund blocked by Fynd status gate: current="${currentStatus || "(none)"}", allowed=[${displayAllowed}]`,
+              fyndLogger.info(
+                {
+                  returnCaseId: returnCase.id,
+                  shopDomain,
+                  currentStatus: currentStatus || null,
+                  allowedStatuses: [...allowedSet],
+                  displayAllowed,
+                },
+                "Auto-refund blocked by Fynd status gate",
               );
               await prisma.returnEvent.create({
                 data: {
@@ -2239,9 +2324,14 @@ export async function processFyndWebhook(
         // finding from QA audit). Merchant fixes the config → next webhook
         // unblocks normally.
         autoRefundBlockedByGate = true;
-        console.error(
-          `[webhook] Auto-refund blocked: allowedFyndStatusesForRefund JSON is malformed for shop ${returnCase.shop.id}:`,
-          parseErr,
+        fyndLogger.error(
+          {
+            returnCaseId: returnCase.id,
+            shopId: returnCase.shop.id,
+            shopDomain,
+            err: parseErr,
+          },
+          "Auto-refund blocked because allowed Fynd statuses config is malformed",
         );
         await prisma.returnEvent
           .create({
@@ -2256,10 +2346,10 @@ export async function processFyndWebhook(
             },
           })
           .catch((err) =>
-            console.warn(
-              "[Fynd webhook] auto_refund_blocked_by_config_error event log failed (non-fatal):",
-              { id: returnCase.id, err },
-            ),
+            logFyndNonFatal("Auto-refund config-error event log failed", {
+              returnCaseId: returnCase.id,
+              err,
+            }),
           );
       }
       /* v8 ignore stop */
@@ -2269,10 +2359,11 @@ export async function processFyndWebhook(
         await prisma.returnCase
           .update({ where: { id: returnCase.id }, data: { fyndCurrentStatus: statusLower } })
           .catch((err) =>
-            console.warn(
-              "[Fynd webhook] fyndCurrentStatus update failed (auto-refund-gated path, non-fatal):",
-              { id: returnCase.id, statusLower, err },
-            ),
+            logFyndNonFatal("Fynd current status update failed on auto-refund-gated path", {
+              returnCaseId: returnCase.id,
+              statusLower,
+              err,
+            }),
           );
       } else {
         let orderIdForRefund = returnCase.shopifyOrderId;
@@ -2348,8 +2439,15 @@ export async function processFyndWebhook(
                     : undefined;
                   const match = matchBySku ?? matchByTitle;
                   if (match) {
-                    console.log(
-                      `[fynd-webhook] Auto-refund resolved lineItem "${li.id}" → "${match.id}" (sku: ${match.sku})`,
+                    fyndLogger.debug(
+                      {
+                        returnCaseId: returnCase.id,
+                        inputLineItemId: li.id,
+                        resolvedLineItemId: match.id,
+                        sku: match.sku,
+                        shopDomain,
+                      },
+                      "Fynd webhook resolved auto-refund line item",
                     );
                     resolved.push({ id: match.id, quantity: li.quantity });
                   }
@@ -2453,10 +2551,11 @@ export async function processFyndWebhook(
                       data: { returnCaseId: returnCase.id, source: "fynd_webhook", ...evt },
                     })
                     .catch((err) =>
-                      console.warn(
-                        "[Fynd webhook] returnEvent log failed during auto-refund close (non-fatal):",
-                        { id: returnCase.id, evt, err },
-                      ),
+                      logFyndNonFatal("Return event log failed during auto-refund close", {
+                        returnCaseId: returnCase.id,
+                        evt,
+                        err,
+                      }),
                     );
                 },
               });
@@ -2470,7 +2569,11 @@ export async function processFyndWebhook(
                   currency: refundDetails.currency ?? undefined,
                   shopName: shopDomain.replace(".myshopify.com", ""),
                 }).catch((err) =>
-                  console.warn("[fynd-webhook] Auto-refund notification failed:", err),
+                  logFyndNonFatal("Auto-refund notification failed", {
+                    returnCaseId: returnCase.id,
+                    shopDomain,
+                    err,
+                  }),
                 );
               }
               /* v8 ignore stop */
@@ -2508,9 +2611,13 @@ export async function processFyndWebhook(
       await prisma.returnCase
         .update({ where: { id: returnCase.id }, data: { fyndCurrentStatus: statusLower } })
         .catch((err) =>
-          console.warn(
-            "[Fynd webhook] fyndCurrentStatus update failed (credit-note-gen, auto-refund-disabled path, non-fatal):",
-            { id: returnCase.id, statusLower, err },
+          logFyndNonFatal(
+            "Fynd current status update failed on credit-note auto-refund-disabled path",
+            {
+              returnCaseId: returnCase.id,
+              statusLower,
+              err,
+            },
           ),
         );
       await prisma.returnEvent.create({

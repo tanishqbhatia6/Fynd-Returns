@@ -122,10 +122,17 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      REDIS_URL: redis://localhost:6379
       SHOPIFY_API_KEY: ci_placeholder
       SHOPIFY_API_SECRET: ci_placeholder
-      SHOPIFY_APP_URL: https://example.com
+      SHOPIFY_APP_URL: https://returns-ci.returnpromax.com
       SCOPES: read_orders,write_orders
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      PORTAL_JWT_SECRET: 0123456789abcdef0123456789abcdef
+      CRON_SECRET: abcdef0123456789abcdef0123456789
+      FYND_WEBHOOK_SECRET: fedcba9876543210fedcba9876543210
+      APP_BILLING_MODE: production
+      APP_MANAGED_PRICING_HANDLE: return-pro-max-ci
 
     steps:
       - name: Checkout
@@ -142,6 +149,9 @@ jobs:
 
       - name: Prisma generate
         run: npx prisma generate
+
+      - name: Validate production environment contract
+        run: npm run validate:production-env
 
       - name: Build (react-router build)
         run: npm run build

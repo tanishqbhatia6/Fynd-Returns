@@ -10,6 +10,7 @@ import {
 } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
+import { Search, X } from "lucide-react";
 import React, { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -35,6 +36,183 @@ declare module "react" {
     }
   }
 }
+
+type AppSearchItem = {
+  title: string;
+  path: string;
+  category: string;
+  description: string;
+  keywords: string;
+};
+
+const APP_SEARCH_ITEMS: AppSearchItem[] = [
+  {
+    title: "Dashboard",
+    path: "/app",
+    category: "Overview",
+    description: "KPIs, setup checklist, pending returns, suggestions, and recent return activity.",
+    keywords: "home overview metrics kpi setup checklist pending recent activity suggestions",
+  },
+  {
+    title: "Returns",
+    path: "/app/returns",
+    category: "Operations",
+    description:
+      "Search and filter return requests by order, return ID, AWB, Fynd ID, email, or phone.",
+    keywords:
+      "returns return requests orders order id return id awb fynd email phone status refund exchange approve reject bulk export",
+  },
+  {
+    title: "Create Return",
+    path: "/app/returns/create",
+    category: "Operations",
+    description: "Create a manual return request from the admin.",
+    keywords: "create return manual admin order request initiate",
+  },
+  {
+    title: "Customers",
+    path: "/app/customers",
+    category: "Customers",
+    description: "Search customers by name, email, phone, or order and review return history.",
+    keywords: "customers customer name email phone order history serial returners refund amount",
+  },
+  {
+    title: "Analytics",
+    path: "/app/reports",
+    category: "Reports",
+    description: "Return reports, trends, refund analytics, reasons, and operational performance.",
+    keywords: "analytics reports trends charts reasons refunds performance exports metrics",
+  },
+  {
+    title: "Settings",
+    path: "/app/settings",
+    category: "Settings",
+    description: "All return policy, portal, integration, notification, and automation settings.",
+    keywords: "settings configuration setup policies integrations portal notification automation",
+  },
+  {
+    title: "Policy Rules",
+    path: "/app/settings/rules",
+    category: "Settings",
+    description: "Return reasons, restricted regions, no-return periods, and per-category rules.",
+    keywords: "rules reasons regions no return minimum price offers category policy",
+  },
+  {
+    title: "Return Settings",
+    path: "/app/settings/return-settings",
+    category: "Settings",
+    description: "Return window, fees, photo requirements, auto-approve, auto-refund, and refunds.",
+    keywords: "window fees photo approval refund store credit exchange instructions labels",
+  },
+  {
+    title: "Product Policies",
+    path: "/app/settings/product-policies",
+    category: "Settings",
+    description: "Per-product return policies by tag, product type, or collection.",
+    keywords: "product tag collection type override window policy",
+  },
+  {
+    title: "Customer Blocklist",
+    path: "/app/settings/blocklist",
+    category: "Settings",
+    description: "Block customers from returns by email, phone, or order name.",
+    keywords: "blocklist blocked fraud email phone customer deny blacklist",
+  },
+  {
+    title: "Channel Policies",
+    path: "/app/settings/channel-policies",
+    category: "Settings",
+    description: "Return rules by Shopify sales channel, POS, Draft Orders, and B2B.",
+    keywords: "channel online store pos draft b2b sales channel",
+  },
+  {
+    title: "Auto-Approve Rules",
+    path: "/app/settings/auto-rules",
+    category: "Settings",
+    description: "Automation rules for approving or flagging return requests.",
+    keywords: "automation auto approve manual review order value tags",
+  },
+  {
+    title: "Fynd Integration",
+    path: "/app/settings/integrations",
+    category: "Integrations",
+    description: "Credentials, environment, connection testing, shipment tracking, and sync.",
+    keywords:
+      "fynd integration credentials connection shipment tracking sync uat production webhook",
+  },
+  {
+    title: "Notifications",
+    path: "/app/settings/notifications",
+    category: "Settings",
+    description: "SMTP email, sound alerts, WhatsApp/SMS, and notification templates.",
+    keywords: "smtp email whatsapp sms alerts templates notification sound",
+  },
+  {
+    title: "Fynd Webhook Logs",
+    path: "/app/settings/webhook-logs",
+    category: "Integrations",
+    description: "Incoming Fynd webhook events, processing status, errors, and payloads.",
+    keywords: "webhook logs events errors payload analytics fynd retry",
+  },
+  {
+    title: "External API Keys",
+    path: "/app/settings/api-keys",
+    category: "Developers",
+    description: "API keys, external integrations, docs, and Postman collection.",
+    keywords: "api keys erp docs postman external integration developers tokens",
+  },
+  {
+    title: "Portal Appearance",
+    path: "/app/settings/widget",
+    category: "Customer Portal",
+    description: "Customer portal colors, fonts, layout, tabs, language, and labels.",
+    keywords:
+      "portal widget theme appearance colors fonts tabs language translation labels locale i18n",
+  },
+  {
+    title: "Customer Portal",
+    path: "/app/portal",
+    category: "Customer Portal",
+    description: "Preview, configure, and open the customer-facing return portal.",
+    keywords: "customer portal storefront widget preview returns page apps returns",
+  },
+  {
+    title: "Setup",
+    path: "/app/settings/setup",
+    category: "Setup",
+    description: "Onboarding setup steps for permissions, policies, portal, and integrations.",
+    keywords: "setup onboarding checklist launch install configure",
+  },
+  {
+    title: "Permissions",
+    path: "/app/settings/permissions",
+    category: "Setup",
+    description: "read_all_orders scope and order-history access.",
+    keywords: "permissions read all orders access scope shopify",
+  },
+  {
+    title: "Billing",
+    path: "/app/billing",
+    category: "Billing",
+    description: "Shopify plan, subscription status, pricing, and charges.",
+    keywords: "billing plan subscription pricing charges managed pricing payment",
+  },
+  {
+    title: "Documentation",
+    path: "/app/docs",
+    category: "Help",
+    description:
+      "Product guide, setup docs, return workflow notes, API reference, and troubleshooting.",
+    keywords: "documentation docs help guide api reference troubleshooting webhook portal returns",
+  },
+  {
+    title: "API Documentation",
+    path: "/app/api-docs",
+    category: "Developers",
+    description: "External API reference and integration notes.",
+    keywords: "api documentation external erp integration webhooks postman developer",
+  },
+];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -151,6 +329,7 @@ export default function App() {
     [location.search],
   );
   const [storedFrameContext, setStoredFrameContext] = useState<string | null>(null);
+  const [appSearchQuery, setAppSearchQuery] = useState("");
   const frameContext = currentFrameContext ?? storedFrameContext;
   useNotificationSound(adminSoundEnabled, pendingCount);
 
@@ -185,6 +364,64 @@ export default function App() {
       navigate(getAdminPath(to));
     },
     [getAdminPath, navigate],
+  );
+
+  const normalizedAppSearchQuery = appSearchQuery.trim().toLowerCase();
+  const hasAppSearchQuery = normalizedAppSearchQuery.length > 0;
+  const appSearchResults = useMemo(
+    () =>
+      normalizedAppSearchQuery
+        ? APP_SEARCH_ITEMS.filter((item) =>
+            [item.title, item.category, item.description, item.path, item.keywords]
+              .join(" ")
+              .toLowerCase()
+              .includes(normalizedAppSearchQuery),
+          ).slice(0, 7)
+        : [],
+    [normalizedAppSearchQuery],
+  );
+  const appSearchDataActions = useMemo(() => {
+    const query = appSearchQuery.trim();
+    if (!query) return [];
+
+    const encodedQuery = encodeURIComponent(query);
+    return [
+      {
+        title: `Search returns for "${query}"`,
+        path: `/app/returns?query=${encodedQuery}`,
+        category: "Data search",
+        description: "Order number, return ID, AWB, Fynd IDs, customer email, or phone.",
+      },
+      {
+        title: `Search customers for "${query}"`,
+        path: `/app/customers?q=${encodedQuery}`,
+        category: "Data search",
+        description: "Customer name, email, phone, or order history.",
+      },
+    ];
+  }, [appSearchQuery]);
+  const visibleAppSearchResults = useMemo(
+    () => [...appSearchResults, ...appSearchDataActions].slice(0, 9),
+    [appSearchDataActions, appSearchResults],
+  );
+
+  const navigateToAppSearchResult = useCallback(
+    (path: string) => {
+      setAppSearchQuery("");
+      navigate(getAdminPath(path));
+    },
+    [getAdminPath, navigate],
+  );
+
+  const handleAppSearchSubmit = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const firstResult = visibleAppSearchResults[0];
+      if (firstResult) {
+        navigateToAppSearchResult(firstResult.path);
+      }
+    },
+    [navigateToAppSearchResult, visibleAppSearchResults],
   );
 
   return (
@@ -228,6 +465,57 @@ export default function App() {
           Documentation
         </s-link>
       </s-app-nav>
+      <div className="app-shell-global-search">
+        <form
+          className="app-shell-global-search-box"
+          role="search"
+          onSubmit={handleAppSearchSubmit}
+        >
+          <Search size={17} strokeWidth={2} aria-hidden="true" />
+          <input
+            type="search"
+            value={appSearchQuery}
+            onChange={(event) => setAppSearchQuery(event.target.value)}
+            placeholder="Search anything in ReturnProMax"
+            aria-label="Search anything in ReturnProMax"
+          />
+          {appSearchQuery && (
+            <button
+              type="button"
+              className="app-shell-global-search-clear"
+              onClick={() => setAppSearchQuery("")}
+              aria-label="Clear app search"
+            >
+              <X size={15} strokeWidth={2} aria-hidden="true" />
+            </button>
+          )}
+        </form>
+        {hasAppSearchQuery && (
+          <div className="app-shell-global-search-results" role="listbox">
+            {visibleAppSearchResults.length > 0 ? (
+              visibleAppSearchResults.map((item) => (
+                <button
+                  type="button"
+                  key={`${item.category}-${item.path}`}
+                  className="app-shell-global-search-result"
+                  onClick={() => navigateToAppSearchResult(item.path)}
+                  role="option"
+                >
+                  <span className="app-shell-global-search-result-main">
+                    <span>{item.title}</span>
+                    <small>{item.category}</small>
+                  </span>
+                  <span className="app-shell-global-search-result-description">
+                    {item.description}
+                  </span>
+                </button>
+              ))
+            ) : (
+              <div className="app-shell-global-search-empty">No matching app sections</div>
+            )}
+          </div>
+        )}
+      </div>
       <Outlet />
     </AppProvider>
   );

@@ -25,6 +25,7 @@ const {
   withRestCredentialsMock,
   sendRefundNotificationMock,
   isLikelyFyndIdMock,
+  fyndLoggerMock,
 } = vi.hoisted(() => ({
   prismaMock: {
     returnCase: {
@@ -64,9 +65,11 @@ const {
   withRestCredentialsMock: vi.fn((c: unknown) => c),
   sendRefundNotificationMock: vi.fn().mockResolvedValue(undefined),
   isLikelyFyndIdMock: vi.fn().mockReturnValue(false),
+  fyndLoggerMock: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
+vi.mock("../observability/logger.server", () => ({ fyndLogger: fyndLoggerMock }));
 
 vi.mock("../shopify-admin.server", () => ({
   createAdminClient: createAdminClientMock,
@@ -555,8 +558,7 @@ describe("processFyndWebhook — auto-refund order resolution branches", () => {
     });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc);
     fetchOrderByFyndAffiliateIdMock.mockResolvedValue(null);
-    sendRefundNotificationMock.mockRejectedValueOnce(new Error("smtp down"));
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  sendRefundNotificationMock.mockRejectedValueOnce(new Error("smtp down"));
     const r = await processFyndWebhook({
       shipment_id: "SHIP-AUTO-1",
       order_id: "FY-AUTO-1",
@@ -568,11 +570,14 @@ describe("processFyndWebhook — auto-refund order resolution branches", () => {
     expect(sendRefundNotificationMock).toHaveBeenCalledWith(
       expect.objectContaining({ to: "jane@example.com" }),
     );
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Manual refund notification failed"),
-      expect.any(Error),
+    expect(fyndLoggerMock.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        returnCaseId: rc.id,
+        shopDomain: rc.shop.shopDomain,
+        err: expect.objectContaining({ message: "smtp down" }),
+      }),
+      "Manual refund notification failed",
     );
-    warnSpy.mockRestore();
   });
 
   it("unwrapFyndWebhookPayload: promotes nested shipment.{order,meta,affiliate_details,bags} fields (lines 483-504)", () => {

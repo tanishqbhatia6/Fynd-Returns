@@ -6,6 +6,7 @@ import {
   markExchangeDeliveredForOrder,
 } from "../lib/exchange-completion.server";
 import { extractAffiliateOrderId } from "../lib/shopify-admin.server";
+import { webhookLogger } from "../lib/observability/logger.server";
 import { normalizeSourceChannel } from "../lib/source-channel.server";
 
 /**
@@ -42,10 +43,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (err) {
     if (err instanceof Response) throw err;
     /* v8 ignore start - defensive Error narrowing in authenticate failure path */
-    console.error("[webhook:orders/updated] authenticate failed", {
-      error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-    });
+    webhookLogger.error(
+      { topic: "ORDERS_UPDATED", err },
+      "Order updated webhook authentication failed",
+    );
     return new Response();
     /* v8 ignore stop */
   }
@@ -119,12 +120,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         } catch (err) {
           // Best-effort — the DB mapping below is the authoritative path.
           /* v8 ignore start - defensive Error narrowing in catch */
-          console.error("[webhook:orders/updated] metafield write failed", {
-            shop,
-            orderName,
-            fyndOrderId,
-            error: err instanceof Error ? err.message : String(err),
-          });
+          webhookLogger.error(
+            { topic: "ORDERS_UPDATED", shop, orderName, fyndOrderId, err },
+            "Order updated metafield write failed",
+          );
           /* v8 ignore stop */
         }
       }
@@ -150,12 +149,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         /* v8 ignore stop */
       } catch (err) {
         /* v8 ignore start - defensive Error narrowing in catch */
-        console.error("[webhook:orders/updated] mapping upsert failed", {
-          shop,
-          orderName,
-          fyndOrderId,
-          error: err instanceof Error ? err.message : String(err),
-        });
+        webhookLogger.error(
+          { topic: "ORDERS_UPDATED", shop, orderName, fyndOrderId, err },
+          "Order updated mapping upsert failed",
+        );
         /* v8 ignore stop */
       }
     }
@@ -209,11 +206,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
       } catch (err) {
         /* v8 ignore start - defensive Error narrowing in catch */
-        console.error("[webhook:orders/updated] sourceChannel backfill failed", {
-          shop,
-          orderName,
-          error: err instanceof Error ? err.message : String(err),
-        });
+        webhookLogger.error(
+          { topic: "ORDERS_UPDATED", shop, orderName, err },
+          "Order updated source channel backfill failed",
+        );
         /* v8 ignore stop */
       }
     }
@@ -229,10 +225,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   } catch (err) {
     /* v8 ignore start - defensive Error narrowing in outer catch */
-    console.error("[webhook:orders/updated]", {
-      error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-    });
+    webhookLogger.error({ topic: "ORDERS_UPDATED", shop, err }, "Order updated webhook failed");
     /* v8 ignore stop */
   }
 

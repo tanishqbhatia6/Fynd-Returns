@@ -419,7 +419,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         },
       });
     } catch (err) {
-      console.error("Return detail loader error:", err);
+      refundLogger.error({ err, shopDomain: session.shop, shopId: shop.id, returnCaseId: id }, "Return detail lookup failed");
       throw new Response("Failed to load return", { status: 500 });
     }
 
@@ -535,7 +535,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
           }
         }
       } catch (err) {
-        console.warn("Could not fetch Shopify order:", err);
+        refundLogger.warn(
+          { err, shopDomain: session.shop, returnCaseId: returnCase.id },
+          "Return detail Shopify order lookup failed",
+        );
       }
       /* v8 ignore stop */
     }
@@ -1346,7 +1349,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
           shopSettings?.returnWindowDays ?? 30,
         );
       } catch (err) {
-        console.error("[return-detail] fraud-score failed:", err);
+        refundLogger.warn(
+          { err, shopDomain: session.shop, shopId: shop.id, returnCaseId: returnCase.id },
+          "Return detail fraud score calculation failed",
+        );
         fraudScore = null;
       }
     }
@@ -1406,7 +1412,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     };
   } catch (err) {
     if (err instanceof Response) throw err;
-    console.error("Return detail loader unexpected error:", err);
+    refundLogger.error({ err }, "Return detail loader failed unexpectedly");
     throw new Response("Failed to load return", { status: 500 });
   }
 };

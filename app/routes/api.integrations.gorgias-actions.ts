@@ -10,6 +10,7 @@ import type { ActionFunctionArgs } from "react-router";
 import crypto from "node:crypto";
 import prisma from "../db.server";
 import { decryptIfEncrypted } from "../lib/encryption.server";
+import { externalApiLogger } from "../lib/observability/logger.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
@@ -190,7 +191,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return Response.json({ error: `Unknown action: ${actionType}` }, { status: 400 });
     }
   } catch (err) {
-    console.error("Gorgias action error:", err);
+    externalApiLogger.error(
+      { err, shopDomain, returnCaseId: returnId, actionType },
+      "Gorgias action failed",
+    );
     return Response.json({ error: "Action failed" }, { status: 500 });
   }
 };

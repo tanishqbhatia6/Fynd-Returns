@@ -13,7 +13,7 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
 const { prismaMock, decryptMock, timingSafeEqualMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  decryptMock: vi.fn((v: string) => v),
+  decryptMock: vi.fn((v: string) => (v ?? "").replace(/^enc:/, "")),
   timingSafeEqualMock: vi.fn(),
 }));
 Object.assign(prismaMock, createPrismaMock());
@@ -42,15 +42,23 @@ vi.mock("node:crypto", async () => {
 import { loader } from "../api.integrations.gorgias";
 
 function mkReq(qs: string, headers: Record<string, string> = {}) {
-  return new Request(`https://app.example/api/integrations/gorgias?${qs}`, {
+  const hasApiKey =
+    /(?:^|&)api_key=/.test(qs) ||
+    Object.keys(headers).some((key) => key.toLowerCase() === "x-gorgias-api-key");
+  const finalQs = qs && !hasApiKey ? `${qs}&api_key=secret` : qs;
+  return new Request(`https://app.example/api/integrations/gorgias?${finalQs}`, {
     headers,
   });
 }
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  decryptMock.mockReset().mockImplementation((v: string) => v);
-  timingSafeEqualMock.mockReset();
+  decryptMock.mockReset().mockImplementation((v: string) => (v ?? "").replace(/^enc:/, ""));
+  timingSafeEqualMock.mockReset().mockImplementation((a: NodeJS.ArrayBufferView, b: NodeJS.ArrayBufferView) => {
+    const aBuf = Buffer.from(a.buffer, a.byteOffset, a.byteLength);
+    const bBuf = Buffer.from(b.buffer, b.byteOffset, b.byteLength);
+    return aBuf.equals(bBuf);
+  });
 });
 
 describe("Gorgias widget — uncovered-branch coverage", () => {
@@ -83,7 +91,7 @@ describe("Gorgias widget — uncovered-branch coverage", () => {
   it("renders 'cancelled' status with the dedicated neutral palette (line 167)", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
@@ -118,7 +126,7 @@ describe("Gorgias widget — uncovered-branch coverage", () => {
   it("uses default risk palette for an unrecognized fraudRiskLevel (line 177)", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     // fraudRiskLevel is truthy and !== "low", so the badge is rendered;
     // but it's not one of critical/high/medium, so getRiskColor falls

@@ -25,7 +25,7 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
 const {
   prismaMock,
-  verifyPortalTokenMock,
+  verifyPortalSessionMock,
   verifyPortalCsrfTokenMock,
   checkRateLimitMock,
   parsePortalConfigMock,
@@ -33,7 +33,7 @@ const {
   dispatchWebhookEventMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  verifyPortalTokenMock: vi.fn(),
+  verifyPortalSessionMock: vi.fn(),
   verifyPortalCsrfTokenMock: vi.fn(() => true),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
   parsePortalConfigMock: vi.fn(() => ({ allowReturnCancellation: true })),
@@ -46,7 +46,7 @@ Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
 vi.mock("../../lib/portal-auth.server", () => ({
-  verifyPortalToken: verifyPortalTokenMock,
+  verifyPortalSession: verifyPortalSessionMock,
   verifyPortalCsrfToken: verifyPortalCsrfTokenMock,
 }));
 vi.mock("../../lib/portal-cors.server", () => ({
@@ -82,8 +82,10 @@ function jsonReq(body: unknown, opts: { auth?: string } = {}) {
 function validSession() {
   return {
     id: "sess-1",
-    verifiedAt: new Date(),
-    expiresAt: new Date(Date.now() + 60_000),
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "u@x.com",
     matchedReturnIds: JSON.stringify(["rc-1"]),
   };
 }
@@ -92,7 +94,7 @@ const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  verifyPortalTokenMock.mockReset().mockReturnValue({ sessionId: "sess-1", shopId: "shop-1" });
+  verifyPortalSessionMock.mockReset().mockResolvedValue(validSession());
   verifyPortalCsrfTokenMock.mockReset().mockReturnValue(true);
   checkRateLimitMock
     .mockReset()
@@ -100,7 +102,6 @@ beforeEach(() => {
   parsePortalConfigMock.mockReset().mockReturnValue({ allowReturnCancellation: true });
   sendCancellationNotificationMock.mockReset().mockResolvedValue(undefined);
   dispatchWebhookEventMock.mockClear();
-  prismaMock.lookupSession.findUnique.mockResolvedValue(validSession());
   prismaMock.shop.findUnique.mockResolvedValue({
     id: "shop-1",
     shopDomain: "store.myshopify.com",
@@ -356,7 +357,7 @@ describe("CSRF gate", () => {
     expect(res.status).toBe(403);
     expect((await res.json()).error).toMatch(/Session expired/);
     // Should never have got to DB calls.
-    expect(prismaMock.lookupSession.findUnique).not.toHaveBeenCalled();
+    expect(verifyPortalSessionMock).not.toHaveBeenCalled();
   });
 
   it("hard mode: accepts a valid portalCsrfToken and proceeds", async () => {

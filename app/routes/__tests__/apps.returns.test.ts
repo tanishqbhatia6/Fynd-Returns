@@ -37,13 +37,17 @@ const TEMPLATE_HTML = [
   "</html>",
 ].join("\n");
 
-const { prismaMock, readFileSyncMock } = vi.hoisted(() => ({
+const { prismaMock, readFileSyncMock, portalLoggerMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   readFileSyncMock: vi.fn(() => ""),
+  portalLoggerMock: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
+vi.mock("../../lib/observability/logger.server", () => ({
+  portalLogger: portalLoggerMock,
+}));
 
 // Stub the portal template read so tests are independent of the real
 // 6k-line HTML and so we can assert substitutions precisely.
@@ -66,6 +70,7 @@ beforeEach(() => {
   resetPrismaMock(prismaMock);
   readFileSyncMock.mockReset();
   readFileSyncMock.mockReturnValue(TEMPLATE_HTML);
+  portalLoggerMock.error.mockClear();
   delete process.env.SHOPIFY_APP_URL;
 });
 
@@ -311,14 +316,18 @@ describe("apps.returns loader", () => {
   });
 
   it("recovers when prisma throws (logs error but still serves the portal with defaults)", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     prismaMock.shop.findUnique.mockRejectedValueOnce(new Error("db down"));
     const res = (await loader(makeArgs(makeRequest("?shop=acme")))) as Response;
     expect(res.status).toBe(200);
     const body = await res.text();
     // Defaults still applied: 30-day window, empty policy.
     expect(body).toContain("30 days");
-    expect(errSpy).toHaveBeenCalled();
-    errSpy.mockRestore();
+    expect(portalLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        err: expect.any(Error),
+        shopDomain: "acme.myshopify.com",
+      }),
+      "Portal theme load failed",
+    );
   });
 });

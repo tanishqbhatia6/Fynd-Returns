@@ -190,10 +190,12 @@ describe("ReturnSettings — final-mile branch coverage", () => {
       l.textContent?.match(/^return_bag_picked$/),
     );
     expect(labels.length).toBeGreaterThan(0);
-    const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;
+    const cb = labels[labels.length - 1].querySelector("input[type='checkbox']") as HTMLInputElement;
     expect(cb.checked).toBe(true);
-    fireEvent.click(cb); // uncheck → exercises filter() branch
-    expect(cb.checked).toBe(false);
+    await act(async () => {
+      fireEvent.click(cb);
+    }); // uncheck → exercises filter() branch
+    await waitFor(() => expect(cb.checked).toBe(false));
   });
 
   it("checks a Return Flow status checkbox in custom mode (check branch)", async () => {

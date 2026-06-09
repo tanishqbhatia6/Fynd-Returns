@@ -1,0 +1,190 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: returnpromax
+  labels:
+    app.kubernetes.io/name: returnpromax
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: returnpromax
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: returnpromax
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          image: ghcr.io/your-org/returnpromax:REPLACE_WITH_DIGEST
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3000"
+            - name: PORTAL_CSRF_REQUIRED
+              value: "true"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: returnpromax-secrets
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: returnpromax-secrets
+                  key: REDIS_URL
+            - name: SHOPIFY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: returnpromax-secrets
+                  key: SHOPIFY_API_KEY
+            - name: SHOPIFY_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: returnpromax-secrets
+                  key: SHOPIFY_API_SECRET
+            - name: SHOPIFY_APP_URL
+              valueFrom:
+                secretKeyRef:
+                  name: returnpromax-secrets
+                  key: SHOPIFY_APP_URL
+            - name: SCOPES
+              valueFrom:
+                secretKeyRef:
+                  name: returnpromax-secrets
+                  key: SCOPES
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: returnpromax-secrets
+                  key: ENCRYPTION_KEY
+            - name: PORTAL_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: returnpromax-secrets
+                  key: PORTAL_JWT_SECRET
+            - name: CRON_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: returnpromax-secrets
+                  key: CRON_SECRET
+            - name: FYND_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: returnpromax-secrets
+                  key: FYND_WEBHOOK_SECRET
+            - name: APP_BILLING_MODE
+              valueFrom:
+                secretKeyRef:
+                  name: returnpromax-secrets
+                  key: APP_BILLING_MODE
+            - name: APP_MANAGED_PRICING_HANDLE
+              valueFrom:
+                secretKeyRef:
+                  name: returnpromax-secrets
+                  key: APP_MANAGED_PRICING_HANDLE
+            - name: SUPERADMIN_EMAILS
+              valueFrom:
+                secretKeyRef:
+                  name: returnpromax-secrets
+                  key: SUPERADMIN_EMAILS
+                  optional: true
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: returnpromax-secrets
+                  key: OTEL_EXPORTER_OTLP_ENDPOINT
+                  optional: true
+          readinessProbe:
+            httpGet:
+              path: /api/readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: returnpromax
+  labels:
+    app.kubernetes.io/name: returnpromax
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: returnpromax
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: returnpromax
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts:
+        - returns.returnpromax.com
+      secretName: returnpromax-tls
+  rules:
+    - host: returns.returnpromax.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: returnpromax
+                port:
+                  name: http
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: returnpromax
+  labels:
+    app.kubernetes.io/name: returnpromax
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: returnpromax

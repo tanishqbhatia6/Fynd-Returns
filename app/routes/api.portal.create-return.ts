@@ -23,7 +23,8 @@ import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import {
   hashLookupValue,
   verifyPortalCsrfToken,
-  verifyPortalToken,
+  verifyPortalSession,
+  type VerifiedPortalSession,
 } from "../lib/portal-auth.server";
 import { evaluateAutoApproveRules, parseAutoApproveRules } from "../lib/auto-approve.server";
 import { parseJsonArray } from "../lib/parse-json";
@@ -36,6 +37,7 @@ import {
   snapshotCoversRequestedLines,
   type ShipmentSnapshot,
 } from "../lib/bag-distribution.server";
+import { portalLogger } from "../lib/observability/logger.server";
 
 type ReturnOffer = {
   reasonCode?: string;
@@ -235,6 +237,21 @@ function clientIpFromRequest(request: Request): string | null {
     request.headers.get("x-real-ip")?.trim() ||
     null;
   return raw && raw.length <= 128 ? raw : null;
+}
+
+function portalSessionMatchesContact(
+  session: VerifiedPortalSession,
+  contacts: { email?: string | null; phone?: string | null },
+): boolean {
+  const email = contacts.email?.trim().toLowerCase();
+  const phone = contacts.phone?.trim().replace(/[^\d+]/g, "");
+  if (session.lookupType === "email" && email) {
+    return session.lookupValueHash === hashLookupValue(email);
+  }
+  if (session.lookupType === "phone" && phone) {
+    return session.lookupValueHash === hashLookupValue(phone);
+  }
+  return false;
 }
 
 function fraudLevel(score: number): "low" | "medium" | "high" | "critical" {
@@ -571,25 +588,34 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const shopAccessToken = shopSession?.accessToken ?? "";
     /* v8 ignore stop */
 
-    if (manualMode && settings?.portalOtpEmailEnabled) {
-      const portalToken = body.portalToken as string | undefined;
-      const portalClaims = portalToken ? verifyPortalToken(portalToken) : null;
-      const expectedHash = customerEmail ? hashLookupValue(customerEmail) : null;
-      if (
-        !portalClaims ||
-        portalClaims.shopId !== shopRecord.id ||
-        portalClaims.lookupType !== "email" ||
-        !expectedHash ||
-        portalClaims.lookupValueHash !== expectedHash
-      ) {
-        return withCors(
-          Response.json(
-            { error: "Please verify your email before submitting a manual return." },
-            { status: 403 },
-          ),
-          request,
-        );
-      }
+    const verifiedPortalSession = await verifyPortalSession(prisma, {
+      portalToken: body.portalToken as string | undefined,
+      sessionId: body.sessionId as string | undefined,
+      shopId: shopRecord.id,
+      allowedLookupTypes: ["email", "phone"],
+    });
+    if (!verifiedPortalSession) {
+      return withCors(
+        Response.json(
+          { error: "Verify your order contact before submitting a return." },
+          { status: 403 },
+        ),
+        request,
+      );
+    }
+    if (
+      !portalSessionMatchesContact(verifiedPortalSession, {
+        email: customerEmail ?? null,
+        phone: customerPhone,
+      })
+    ) {
+      return withCors(
+        Response.json(
+          { error: "Verified customer does not match this return request." },
+          { status: 403 },
+        ),
+        request,
+      );
     }
 
     // Blocklist check
@@ -677,7 +703,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           request,
         );
       } catch (err) {
-        console.error("[Portal create-return] Offer discount code error:", err);
+        portalLogger.error({ err, shopDomain }, "Portal create-return offer discount failed");
         return withCors(
           Response.json(
             { error: "Could not generate discount code. Please try again." },
@@ -705,7 +731,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const searchId = effectiveOrderId.replace(/^#/, "").trim();
         const resolved = await fetchOrderByFyndAffiliateId(admin, searchId);
         if (resolved?.id) {
-          console.log(`[create-return] Resolved orderId "${effectiveOrderId}" → "${resolved.id}"`);
+          portalLogger.debug(
+            { shopDomain, orderId: effectiveOrderId, resolvedOrderId: resolved.id },
+            "Portal create-return resolved order ID",
+          );
           // Backfill the FyndOrderMapping with the resolved Shopify GID for future lookups.
           // `void` makes the fire-and-forget intent explicit so linters / future readers
           // don't add a stray `await` that would block the request on a best-effort cache write.
@@ -729,7 +758,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           effectiveOrderId = resolved.id;
         }
       } catch (err) {
-        console.warn(`[create-return] Could not resolve orderId "${effectiveOrderId}":`, err);
+        portalLogger.warn(
+          { err, shopDomain, orderId: effectiveOrderId },
+          "Portal create-return could not resolve order ID",
+        );
       }
 
       // Fallback: check FyndOrderMapping for a cached Shopify GID if Shopify search failed.
@@ -747,8 +779,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             },
           });
           if (mapping?.shopifyOrderId?.startsWith("gid://")) {
-            console.log(
-              `[create-return] Resolved orderId "${effectiveOrderId}" → "${mapping.shopifyOrderId}" via FyndOrderMapping`,
+            portalLogger.debug(
+              { shopDomain, orderId: effectiveOrderId, resolvedOrderId: mapping.shopifyOrderId },
+              "Portal create-return resolved order ID via FyndOrderMapping",
             );
             effectiveOrderId = mapping.shopifyOrderId;
           }
@@ -772,8 +805,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           );
           /* v8 ignore start - defensive `?.id?.startsWith` chain on null lastResort */
           if (lastResort?.id?.startsWith("gid://")) {
-            console.log(
-              `[create-return] Last-resort resolved orderId "${effectiveOrderId}" → "${lastResort.id}"`,
+            portalLogger.debug(
+              { shopDomain, orderId: effectiveOrderId, resolvedOrderId: lastResort.id },
+              "Portal create-return last-resort resolved order ID",
             );
             effectiveOrderId = lastResort.id;
             // Backfill FyndOrderMapping for future lookups (fire-and-forget cache write)
@@ -1140,8 +1174,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               shopifyOrder = resolved;
               // Also update effectiveOrderId to the resolved GID since we found the order
               if (resolved.id.startsWith("gid://")) {
-                console.log(
-                  `[create-return] Late-resolved orderId "${effectiveOrderId}" → "${resolved.id}" during line item resolution`,
+                portalLogger.debug(
+                  { shopDomain, orderId: effectiveOrderId, resolvedOrderId: resolved.id },
+                  "Portal create-return late-resolved order ID during line item resolution",
                 );
                 effectiveOrderId = resolved.id;
               }
@@ -1201,8 +1236,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               if (!matched && shopifyLineItems.length === 1) matched = shopifyLineItems[0];
 
               if (matched) {
-                console.log(
-                  `[create-return] Resolved lineItemId "${it.lineItemId}" → "${matched.id}" (${matched.title}, sku: ${matched.sku})`,
+                portalLogger.debug(
+                  {
+                    shopDomain,
+                    lineItemId: it.lineItemId,
+                    resolvedLineItemId: matched.id,
+                    sku: matched.sku,
+                  },
+                  "Portal create-return resolved line item ID",
                 );
                 it.lineItemId = matched.id;
                 lineItemIdMapping.set(matched.id, originalId);
@@ -1211,7 +1252,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             }
           }
         } catch (err) {
-          console.warn("[create-return] Could not resolve line item IDs:", err);
+          portalLogger.warn(
+            { err, shopDomain },
+            "Portal create-return could not resolve line item IDs",
+          );
           // Non-fatal: proceed with original IDs; refund flow has its own fallback
         }
         /* v8 ignore stop */
@@ -1409,6 +1453,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const liveOrder = await fetchOrder(admin, effectiveOrderId);
         liveOrderForValidation = liveOrder;
         if (liveOrder) {
+          if (
+            !portalSessionMatchesContact(verifiedPortalSession, {
+              email: liveOrder.email ?? null,
+              phone: liveOrder.phone ?? liveOrder.shippingAddress?.phone ?? null,
+            })
+          ) {
+            return withCors(
+              Response.json(
+                { error: "Verified customer does not match this order." },
+                { status: 403 },
+              ),
+              request,
+            );
+          }
           if (liveOrder.sourceName) {
             capturedSourceChannel = normalizeSourceChannel(liveOrder.sourceName);
           }
@@ -1448,7 +1506,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
         }
       } catch (fulfillErr) {
-        console.warn("[Portal create-return] Fulfillment status check failed:", fulfillErr);
+        portalLogger.warn(
+          { err: fulfillErr, shopDomain },
+          "Portal create-return fulfillment status check failed",
+        );
         // If we can't verify, fall through — the order lookup would have already blocked in the portal
       }
     }
@@ -1592,7 +1653,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           // If no status found, allow the return (don't block Shopify-only orders that happen to have a mapping)
         }
       } catch (gateErr) {
-        console.warn("[Portal create-return] Fynd status gate check failed:", gateErr);
+        portalLogger.warn(
+          { err: gateErr, shopDomain },
+          "Portal create-return Fynd status gate check failed",
+        );
       }
     }
 
@@ -1751,7 +1815,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           returnWindowDays,
         );
       } catch (err) {
-        console.warn("[Portal create-return] Fraud scoring failed:", err);
+        portalLogger.warn({ err, shopDomain }, "Portal create-return fraud scoring failed");
       }
     }
     if (!fraudScoreForReturn) {
@@ -1768,7 +1832,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }),
         );
       } catch (err) {
-        console.warn("[Portal create-return] IP fraud lookup failed:", err);
+        portalLogger.warn({ err, shopDomain }, "Portal create-return IP fraud lookup failed");
       }
     }
     const firstReasonCode = itemsToCreate[0]?.reasonCode?.toLowerCase() ?? "";
@@ -2365,7 +2429,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       returnRequestId: returnCase.returnRequestNo ?? "",
       shopName: shopDomain.replace(".myshopify.com", ""),
     }).catch((notifyErr) => {
-      console.warn("[Portal create-return] New return notification failed:", notifyErr);
+      portalLogger.warn(
+        { err: notifyErr, shopDomain },
+        "Portal create-return new return notification failed",
+      );
     });
 
     // When auto-approved, create the Shopify Return and sync to Fynd so both
@@ -2489,7 +2556,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
       } catch (fyndErr) {
         const errMsg = fyndErr instanceof Error ? fyndErr.message : String(fyndErr);
-        console.warn("[Portal create-return] Fynd sync failed:", errMsg);
+        portalLogger.warn(
+          { err: fyndErr, errorMessage: errMsg, shopDomain },
+          "Portal create-return Fynd sync failed",
+        );
         // Schedule automatic retry instead of requiring manual admin intervention
         try {
           const { scheduleRetry } = await import("../lib/fynd-retry.server");
@@ -2539,7 +2609,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       request,
     );
   } catch (err) {
-    console.error("Portal create return:", err);
+    portalLogger.error({ err }, "Portal create-return failed");
     // Only expose safe, customer-facing error messages — never internal details
     const SAFE_PATTERNS = [
       /order has not been fulfilled/i,

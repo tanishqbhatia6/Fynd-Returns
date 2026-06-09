@@ -7,12 +7,14 @@ const {
   shopifyModuleMock,
   fetchSubscriptionSnapshotMock,
   extractAffiliateOrderIdMock,
+  webhookLoggerMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateWebhookMock: vi.fn(),
   shopifyModuleMock: { unauthenticated: { admin: vi.fn() } },
   fetchSubscriptionSnapshotMock: vi.fn(),
   extractAffiliateOrderIdMock: vi.fn(),
+  webhookLoggerMock: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 Object.assign(prismaMock, createPrismaMock());
 (prismaMock as unknown as Record<string, unknown>).fyndOrderMapping = {
@@ -32,6 +34,9 @@ vi.mock("../../lib/billing.server", () => ({
 vi.mock("../../lib/shopify-admin.server", () => ({
   extractAffiliateOrderId: extractAffiliateOrderIdMock,
 }));
+vi.mock("../../lib/observability/logger.server", () => ({
+  webhookLogger: webhookLoggerMock,
+}));
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
@@ -49,6 +54,10 @@ beforeEach(() => {
   shopifyModuleMock.unauthenticated.admin.mockReset();
   fetchSubscriptionSnapshotMock.mockReset();
   extractAffiliateOrderIdMock.mockReset();
+  webhookLoggerMock.error.mockClear();
+  webhookLoggerMock.warn.mockClear();
+  webhookLoggerMock.info.mockClear();
+  webhookLoggerMock.debug.mockClear();
 });
 
 function mkReq() {
@@ -173,5 +182,13 @@ describe("webhooks.draft-orders.create", () => {
     prismaMock.shop.findUnique.mockRejectedValueOnce(new Error("db"));
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
+    expect(webhookLoggerMock.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: "DRAFT_ORDERS_CREATE",
+        shop: "s",
+        err: expect.objectContaining({ message: "db" }),
+      }),
+      "Draft order create failed",
+    );
   });
 });

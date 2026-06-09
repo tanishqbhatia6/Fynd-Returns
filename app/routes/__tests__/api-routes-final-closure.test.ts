@@ -78,7 +78,7 @@ const {
     fetchOrderByFyndAffiliateIdMock: vi.fn(),
     fetchOrderByOrderNumberMock: vi.fn(),
     withRestCredentialsMock: vi.fn((admin: unknown) => admin),
-    decryptMock: vi.fn((v: string) => v),
+    decryptMock: vi.fn((v: string) => (v ?? "").replace(/^enc:/, "")),
     sendApprovalMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
     sendRejectionMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
     sendMailMock: sendMail,
@@ -172,7 +172,7 @@ beforeEach(() => {
   fetchOrderByFyndAffiliateIdMock.mockReset();
   fetchOrderByOrderNumberMock.mockReset();
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
-  decryptMock.mockReset().mockImplementation((v: string) => v);
+  decryptMock.mockReset().mockImplementation((v: string) => (v ?? "").replace(/^enc:/, ""));
   sendApprovalMock.mockReset().mockResolvedValue(undefined);
   sendRejectionMock.mockReset().mockResolvedValue(undefined);
   sendMailMock.mockReset().mockResolvedValue({ messageId: "x" });
@@ -959,6 +959,7 @@ describe("scheduled-report — final closure", () => {
   });
 
   it("weekly + dayOfWeek mismatch → continues to next setting", async () => {
+    process.env.CRON_SECRET = "secret";
     const now = new Date();
     const today = now.getDay() === 0 ? 7 : now.getDay();
     const nextDay = (today % 7) + 1; // pick a different day
@@ -981,7 +982,9 @@ describe("scheduled-report — final closure", () => {
       },
     ]);
     const res = await scheduledReportLoader({
-      request: new Request("https://app.example/api/scheduled-report"),
+      request: new Request("https://app.example/api/scheduled-report", {
+        headers: { "x-cron-secret": "secret" },
+      }),
       params: {},
       context: {},
     } as never);
@@ -1058,10 +1061,12 @@ describe("integrations.gorgias — final closure", () => {
   it("returns 'No Data' when no email or order provided", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     const res = await gorgiasLoader({
-      request: new Request("https://app.example/api/integrations/gorgias?shop=test.myshopify.com"),
+      request: new Request(
+        "https://app.example/api/integrations/gorgias?shop=test.myshopify.com&api_key=secret",
+      ),
       params: {},
       context: {},
     } as never);
@@ -1072,7 +1077,7 @@ describe("integrations.gorgias — final closure", () => {
   it("falls back without isGiftReturn fields when first findMany throws", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { gorgiasEnabled: true, gorgiasApiKey: null },
+      settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     // First call (with isGiftReturn fields) throws, fallback succeeds.
     prismaMock.returnCase.findMany
@@ -1091,7 +1096,7 @@ describe("integrations.gorgias — final closure", () => {
       ]);
     const res = await gorgiasLoader({
       request: new Request(
-        "https://app.example/api/integrations/gorgias?shop=test.myshopify.com&email=a@b.com",
+        "https://app.example/api/integrations/gorgias?shop=test.myshopify.com&email=a@b.com&api_key=secret",
       ),
       params: {},
       context: {},

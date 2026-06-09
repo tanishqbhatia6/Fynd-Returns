@@ -163,6 +163,7 @@ vi.mock("../../lib/observability/metrics.server", () => ({
   returnsRejectedCounter: { add: vi.fn() },
   returnsCompletedCounter: { add: vi.fn() },
   appErrorCounter: { add: vi.fn() },
+  cronJobCounter: { add: vi.fn() },
 }));
 vi.mock("../../lib/observability/audit.server", () => ({ auditReturnAction: vi.fn() }));
 vi.mock("../../lib/observability/slo.server", () => ({ annotateSLO: vi.fn() }));
@@ -187,8 +188,15 @@ import { action as actionsAction } from "../api.returns.$id.actions";
 
 const origEnv = { ...process.env };
 
+function scheduledReportRequest() {
+  return new Request("https://app/api/scheduled-report", {
+    headers: { "x-cron-secret": "test-cron-secret" },
+  });
+}
+
 beforeEach(() => {
   process.env = { ...origEnv };
+  process.env.CRON_SECRET = "test-cron-secret";
   resetPrismaMock(sharedPrisma);
   // sched mocks
   sharedPrisma.shopSettings.findMany.mockReset().mockResolvedValue([]);
@@ -251,7 +259,7 @@ describe("api.scheduled-report — falsy/default branch closeout", () => {
       schedSetting({ shopCurrency: "", shopLocale: "" }),
     ]);
     const res = await scheduledReportLoader({
-      request: new Request("https://app/api/scheduled-report"),
+      request: scheduledReportRequest(),
       params: {},
       context: {},
     } as never);
@@ -266,7 +274,7 @@ describe("api.scheduled-report — falsy/default branch closeout", () => {
       schedSetting({ shopTimezone: null }),
     ]);
     const res = await scheduledReportLoader({
-      request: new Request("https://app/api/scheduled-report"),
+      request: scheduledReportRequest(),
       params: {},
       context: {},
     } as never);
@@ -278,7 +286,7 @@ describe("api.scheduled-report — falsy/default branch closeout", () => {
     sharedPrisma.shopSettings.findMany.mockResolvedValueOnce([schedSetting()]);
     schedDecryptMock.mockReturnValueOnce(null as never);
     const res = await scheduledReportLoader({
-      request: new Request("https://app/api/scheduled-report"),
+      request: scheduledReportRequest(),
       params: {},
       context: {},
     } as never);
@@ -295,7 +303,7 @@ describe("api.scheduled-report — falsy/default branch closeout", () => {
       schedSetting({ smtpPort: null, smtpSecure: null }),
     ]);
     await scheduledReportLoader({
-      request: new Request("https://app/api/scheduled-report"),
+      request: scheduledReportRequest(),
       params: {},
       context: {},
     } as never);
@@ -307,7 +315,7 @@ describe("api.scheduled-report — falsy/default branch closeout", () => {
   it("uses smtpUser as `from` when smtpFromEmail is empty (line 222 cond-expr falsy)", async () => {
     sharedPrisma.shopSettings.findMany.mockResolvedValueOnce([schedSetting({ smtpFromEmail: "" })]);
     await scheduledReportLoader({
-      request: new Request("https://app/api/scheduled-report"),
+      request: scheduledReportRequest(),
       params: {},
       context: {},
     } as never);
@@ -317,7 +325,7 @@ describe("api.scheduled-report — falsy/default branch closeout", () => {
   it("uses 'ReturnProMax' when smtpFromName is empty (line 222 || fallback)", async () => {
     sharedPrisma.shopSettings.findMany.mockResolvedValueOnce([schedSetting({ smtpFromName: "" })]);
     await scheduledReportLoader({
-      request: new Request("https://app/api/scheduled-report"),
+      request: scheduledReportRequest(),
       params: {},
       context: {},
     } as never);

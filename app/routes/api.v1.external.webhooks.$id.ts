@@ -2,6 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { authenticateApiKey } from "../lib/api-key-auth.server";
 import { apiSuccess, apiError, checkPerKeyRateLimit } from "../lib/external-api-helpers.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
+import { externalApiLogger } from "../lib/observability/logger.server";
 import prisma from "../db.server";
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -37,7 +38,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       message: "Webhook subscription removed",
     });
   } catch (err) {
-    console.error("[external.webhooks.delete]", err);
+    externalApiLogger.error(
+      {
+        endpoint: "external.webhooks.delete",
+        shopId: auth.shopId,
+        keyId: auth.keyId,
+        webhookId: id,
+        err,
+      },
+      "External webhook subscription delete failed",
+    );
     return apiError(500, "INTERNAL_ERROR", "Failed to delete webhook subscription");
   }
 };

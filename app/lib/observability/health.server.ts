@@ -6,8 +6,12 @@
  */
 
 import prisma from "../../db.server";
-import { healthCheckDuration } from "./metrics.server";
+import { getRedis } from "../redis.server";
+import { healthCheckDuration, redisHealthStatus } from "./metrics.server";
 import { getAllCircuitBreakerStatuses } from "./resilience.server";
+
+let redisHealthValue = 0;
+redisHealthStatus.addCallback((obs) => obs.observe(redisHealthValue));
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,6 +70,47 @@ export async function checkDatabase(): Promise<HealthCheckResult> {
 }
 
 /**
+ * Check Redis connectivity. Production readiness is degraded if Redis is not
+ * configured or not reachable because rate limiting must be fleet-wide.
+ */
+export async function checkRedis(): Promise<HealthCheckResult> {
+  const start = performance.now();
+  const configured = Boolean(process.env.REDIS_URL?.trim());
+  if (!configured) {
+    const latencyMs = Math.round(performance.now() - start);
+    redisHealthValue = 0;
+    if (process.env.NODE_ENV === "production") {
+      return { status: "error", latencyMs, message: "REDIS_URL is required in production" };
+    }
+    return { status: "ok", latencyMs, message: "Redis disabled outside production" };
+  }
+
+  const redis = getRedis();
+  if (!redis) {
+    const latencyMs = Math.round(performance.now() - start);
+    redisHealthValue = 0;
+    return { status: "error", latencyMs, message: "Redis client unavailable" };
+  }
+
+  try {
+    await withTimeout(redis.ping(), 3000, "redis");
+    const latencyMs = Math.round(performance.now() - start);
+    healthCheckDuration.record(latencyMs, { dependency: "redis" });
+    redisHealthValue = 1;
+    return { status: "ok", latencyMs };
+  } catch (err) {
+    const latencyMs = Math.round(performance.now() - start);
+    healthCheckDuration.record(latencyMs, { dependency: "redis" });
+    redisHealthValue = 0;
+    return {
+      status: "error",
+      latencyMs,
+      message: err instanceof Error ? err.message : "Redis check failed",
+    };
+  }
+}
+
+/**
  * Check Fynd API reachability with a lightweight request.
  * Does NOT consume OAuth tokens — just checks if the endpoint responds.
  */
@@ -108,13 +153,21 @@ export async function checkFyndApi(): Promise<HealthCheckResult> {
  * Run all readiness checks and return composite result.
  */
 export async function runReadinessChecks(): Promise<ReadinessResult> {
-  const [database, fyndApi] = await Promise.allSettled([checkDatabase(), checkFyndApi()]);
+  const [database, redis, fyndApi] = await Promise.allSettled([
+    checkDatabase(),
+    checkRedis(),
+    checkFyndApi(),
+  ]);
 
   const checks: Record<string, HealthCheckResult> = {
     database:
       database.status === "fulfilled"
         ? database.value
         : { status: "error", latencyMs: 0, message: String(database.reason) },
+    redis:
+      redis.status === "fulfilled"
+        ? redis.value
+        : { status: "error", latencyMs: 0, message: String(redis.reason) },
     fynd_api:
       fyndApi.status === "fulfilled"
         ? fyndApi.value

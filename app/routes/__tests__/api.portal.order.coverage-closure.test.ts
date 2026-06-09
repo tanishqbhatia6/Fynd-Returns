@@ -77,6 +77,15 @@ vi.mock("../../lib/fynd.server", () => ({
 }));
 vi.mock("../../lib/portal-auth.server", () => ({
   createPortalCsrfToken: createPortalCsrfTokenMock,
+  verifyPortalSession: vi.fn(async () => ({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "shopper@example.com",
+    matchedReturnIds: null,
+  })),
+  hashLookupValue: vi.fn(() => "hash"),
 }));
 vi.mock("../../lib/shopify-admin.server", async () => {
   class OrderAccessError extends Error {
@@ -109,10 +118,32 @@ function getMappingMock(): MappingMock {
 }
 
 function setFyndShipments(shipments: unknown[]) {
+  const shipmentsWithVerifiedContact = shipments.map((shipment) => {
+    if (!shipment || typeof shipment !== "object") return shipment;
+    const row = shipment as Record<string, unknown>;
+    const bags = Array.isArray(row.bags)
+      ? row.bags.map((bag) => {
+          if (!bag || typeof bag !== "object") return bag;
+          return {
+            delivery_address: {
+              email: "shopper@example.com",
+              phone: "+15550100",
+            },
+            ...(bag as Record<string, unknown>),
+          };
+        })
+      : row.bags;
+    return {
+      customer_details: { email: "shopper@example.com", phone: "+15550100" },
+      delivery_address: { email: "shopper@example.com", phone: "+15550100" },
+      ...row,
+      bags,
+    };
+  });
   createFyndClientOrErrorMock.mockResolvedValue({
     ok: true,
     client: {
-      searchShipmentsByExternalOrderId: vi.fn().mockResolvedValue({ items: shipments }),
+      searchShipmentsByExternalOrderId: vi.fn().mockResolvedValue({ items: shipmentsWithVerifiedContact }),
     },
   });
 }

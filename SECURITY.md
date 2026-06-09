@@ -28,10 +28,15 @@
 | `SHOPIFY_API_SECRET` | Yes | From Shopify Partner Dashboard |
 | `SCOPES` | Yes | Comma-separated OAuth scopes |
 | `SHOPIFY_APP_URL` | Yes | App URL (e.g. `https://your-app.onrender.com`) |
+| `REDIS_URL` | Yes | Redis connection string for production rate limiting |
+| `CRON_SECRET` | Yes | Bearer/shared secret for cron endpoints |
+| `FYND_WEBHOOK_SECRET` | Yes | Shared secret for the legacy/global Fynd webhook receiver. Generate: `openssl rand -hex 32` |
 
 ## Deployment checklist
 
-1. Set `ENCRYPTION_KEY` and `PORTAL_JWT_SECRET` with cryptographically secure values.
-2. Run `npx prisma migrate deploy` after deploy.
-3. Use HTTPS only. Do not expose credentials over HTTP.
-4. Rotate `ENCRYPTION_KEY` only when migrating credentials; existing encrypted data will be unreadable with a new key.
+1. Set `ENCRYPTION_KEY`, `PORTAL_JWT_SECRET`, `CRON_SECRET`, and `FYND_WEBHOOK_SECRET` with cryptographically secure values.
+2. Set `REDIS_URL`; production startup rejects missing Redis unless `REQUIRE_REDIS=false` is used as a temporary emergency rollback.
+3. Run `npx prisma migrate deploy` after deploy.
+4. Use HTTPS only. Do not expose credentials over HTTP.
+5. Rotate `ENCRYPTION_KEY` only with `ENCRYPTION_KEYS_PREVIOUS` and `scripts/backfill-rotate-secrets.mjs`.
+6. Follow `docs/22-operational-readiness.md` for probes, backups, alerts, and secret rotation.

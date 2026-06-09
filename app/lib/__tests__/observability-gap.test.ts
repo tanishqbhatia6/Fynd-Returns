@@ -129,6 +129,7 @@ describe("observability/health.server — withTimeout firing", () => {
     }));
     vi.doMock("../observability/metrics.server", () => ({
       healthCheckDuration: { record: vi.fn() },
+      redisHealthStatus: { addCallback: vi.fn() },
     }));
     vi.doMock("../observability/resilience.server", () => ({
       getAllCircuitBreakerStatuses: vi.fn(() => []),
@@ -487,6 +488,7 @@ describe("observability/resilience.server — gap branches", () => {
       circuitBreakerRejected: { add: circuitBreakerRejectedAdd },
       externalTimeoutCounter: { add: externalTimeoutCounterAdd },
       fallbackActivated: { add: fallbackActivatedAdd },
+      redisHealthStatus: { addCallback: vi.fn() },
     }));
   });
 

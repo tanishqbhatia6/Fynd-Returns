@@ -59,6 +59,15 @@ vi.mock("../../lib/rate-limit.server", () => ({
 }));
 vi.mock("../../lib/portal-auth.server", () => ({
   verifyPortalCsrfToken: verifyPortalCsrfMock,
+  verifyPortalSession: vi.fn(async () => ({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "shopper@example.com",
+    matchedReturnIds: null,
+  })),
+  hashLookupValue: vi.fn(() => "hash"),
 }));
 vi.mock("../../lib/shopify-admin.server", () => ({
   fetchOrder: fetchOrderMock,
@@ -103,7 +112,12 @@ function jsonReq(body: unknown) {
   return new Request("https://app.example/api/portal/create-return", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      customerEmail: "shopper@example.com",
+      portalToken: "verified-token",
+      sessionId: "session-1",
+      ...(body as Record<string, unknown>),
+    }),
   });
 }
 
@@ -225,6 +239,7 @@ describe("auto-approve else branch (line 952)", () => {
     prismaMock.returnCase.count.mockResolvedValue(0);
     fetchOrderMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/1",
+    email: "shopper@example.com",
       lineItems: [{ id: "li-1", title: "T-Shirt", sku: "TSH-1", quantity: 1 }],
       sourceName: "web",
     });
@@ -267,6 +282,7 @@ describe("media filter branches (lines 900-901)", () => {
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     fetchOrderMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/1",
+    email: "shopper@example.com",
       lineItems: [{ id: "li-1", title: "T-Shirt", sku: "TSH-1", quantity: 1 }],
       sourceName: "web",
     });
@@ -363,6 +379,7 @@ describe("gid:// prefix continue and SKU fallback (L547/L1107)", () => {
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     fetchOrderMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/1",
+    email: "shopper@example.com",
       lineItems: [{ id: "gid://shopify/LineItem/1", title: "T-Shirt", sku: "TSH-1", quantity: 1 }],
       sourceName: "web",
     });
@@ -424,6 +441,7 @@ describe("manual + non-manual mixed items continue branches (L547/647/864/1120)"
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     fetchOrderMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/1",
+    email: "shopper@example.com",
       lineItems: [{ id: "li-1", title: "T-Shirt", sku: "TSH-1", quantity: 1 }],
       sourceName: "web",
     });
@@ -470,6 +488,7 @@ describe("exchangeVariantSelections with missing ids (L1010)", () => {
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     fetchOrderMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/1",
+    email: "shopper@example.com",
       lineItems: [{ id: "li-1", title: "T-Shirt", sku: "TSH-1", quantity: 1 }],
       sourceName: "web",
     });

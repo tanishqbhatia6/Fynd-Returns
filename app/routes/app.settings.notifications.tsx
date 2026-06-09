@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { findOrCreateShop } from "../lib/shop.server";
 import { testSmtpConnection } from "../lib/notification.server";
-import { encryptIfNeeded, decryptIfEncrypted, looksEncrypted } from "../lib/encryption.server";
+import { encryptIfNeeded, decryptIfEncrypted } from "../lib/encryption.server";
 import { AppPage } from "../components/AppPage";
 import { renderEmailPreview } from "../lib/email-template-preview";
 
@@ -37,8 +37,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         whatsappApiKey?: string | null;
         whatsappPhoneNumberId?: string | null;
         whatsappFromNumber?: string | null;
-        portalOtpEmailEnabled?: boolean;
-        portalOtpSmsEnabled?: boolean;
       })
     | null;
 
@@ -94,8 +92,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     whatsappApiKey: sWa?.whatsappApiKey ? SMTP_PASS_PLACEHOLDER : "",
     whatsappPhoneNumberId: sWa?.whatsappPhoneNumberId ?? "",
     whatsappFromNumber: sWa?.whatsappFromNumber ?? "",
-    portalOtpEmailEnabled: sWa?.portalOtpEmailEnabled ?? false,
-    portalOtpSmsEnabled: sWa?.portalOtpSmsEnabled ?? false,
+    portalOtpEmailEnabled: true,
+    portalOtpSmsEnabled: true,
     notificationLogs,
     notificationLogFilters,
   };
@@ -137,7 +135,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // defensive || "{}" fallback + JSON parse catch path
     /* v8 ignore start */
     const raw = String(fd.get("emailTemplatesJson") || "{}");
-    let parsed: Record<string, unknown> = {};
+    let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(raw);
     } catch {
@@ -197,8 +195,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     })(),
     whatsappPhoneNumberId: String(fd.get("whatsappPhoneNumberId") || "").trim() || null,
     whatsappFromNumber: String(fd.get("whatsappFromNumber") || "").trim() || null,
-    portalOtpEmailEnabled: fd.get("portalOtpEmailEnabled") === "on",
-    portalOtpSmsEnabled: fd.get("portalOtpSmsEnabled") === "on",
+    portalOtpEmailEnabled: true,
+    portalOtpSmsEnabled: true,
   };
 
   try {
@@ -225,6 +223,7 @@ function Toggle({
   description,
   icon,
   accentColor,
+  disabled = false,
 }: {
   name: string;
   checked: boolean;
@@ -233,6 +232,7 @@ function Toggle({
   description: string;
   icon: React.ReactNode;
   accentColor?: string;
+  disabled?: boolean;
 }) {
   return (
     // accentColor || fallback to default accent (defensive when prop omitted)
@@ -244,11 +244,12 @@ function Toggle({
         gap: 14,
         padding: "14px 18px",
         background: checked ? "var(--rpm-surface-subtle)" : "var(--rpm-surface)",
-        border: `1px solid ${checked ? (accentColor || "var(--rpm-accent)") + "33" : "var(--rpm-border-color)"}`,
-        borderRadius: "var(--rpm-radius)",
-        transition: "var(--rpm-transition)",
-      }}
-    >
+          border: `1px solid ${checked ? (accentColor || "var(--rpm-accent)") + "33" : "var(--rpm-border-color)"}`,
+          borderRadius: "var(--rpm-radius)",
+          transition: "var(--rpm-transition)",
+          opacity: disabled ? 0.78 : 1,
+        }}
+      >
       <div
         style={{
           flexShrink: 0,
@@ -282,14 +283,17 @@ function Toggle({
           width: 44,
           height: 24,
           flexShrink: 0,
-          cursor: "pointer",
+          cursor: disabled ? "not-allowed" : "pointer",
         }}
       >
         <input
           type="checkbox"
           name={name}
           checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
+          disabled={disabled}
+          onChange={(e) => {
+            if (!disabled) onChange(e.target.checked);
+          }}
           style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
         />
         <span
@@ -465,9 +469,6 @@ export default function Notifications() {
   const [waPhoneNumberId, setWaPhoneNumberId] = useState(data.whatsappPhoneNumberId);
   const [waFromNumber, setWaFromNumber] = useState(data.whatsappFromNumber);
 
-  const [otpEmailEnabled, setOtpEmailEnabled] = useState(data.portalOtpEmailEnabled);
-  const [otpSmsEnabled, setOtpSmsEnabled] = useState(data.portalOtpSmsEnabled);
-
   const [previewTemplate, setPreviewTemplate] = useState<string | null>(null);
 
   const templateFetcher = useFetcher<{ templatesSaved?: boolean; error?: string }>();
@@ -490,40 +491,43 @@ export default function Notifications() {
     color: string;
     defaultSubject: string;
     defaultBody: string;
-  }[] = [
-    {
-      key: "new_return",
-      label: "New Return",
-      color: "#D97706",
-      defaultSubject: "New return request {{returnId}} for {{orderName}}",
-      defaultBody:
-        "<h2>New Return Request</h2><p>A return request <strong>{{returnId}}</strong> has been submitted for order <strong>{{orderName}}</strong> by {{customerEmail}}.</p><p>Please review this return in your admin panel.</p>",
-    },
-    {
-      key: "approved",
-      label: "Approved",
-      color: "#059669",
-      defaultSubject: "Your return for {{orderName}} has been approved",
-      defaultBody:
-        "<h2>Return Approved</h2><p>Your return request for order <strong>{{orderName}}</strong> has been approved and is being processed.</p><p>We will notify you with further updates.</p>",
-    },
-    {
-      key: "rejected",
-      label: "Rejected",
-      color: "#DC2626",
-      defaultSubject: "Your return for {{orderName}} has been declined",
-      defaultBody:
-        "<h2>Return Declined</h2><p>Your return request for order <strong>{{orderName}}</strong> has been declined.</p><p><strong>Reason:</strong> {{rejectionReason}}</p><p>If you have questions, please contact the store.</p>",
-    },
-    {
-      key: "refunded",
-      label: "Refunded",
-      color: "#7C3AED",
-      defaultSubject: "Your refund for {{orderName}} has been processed",
-      defaultBody:
-        "<h2>Refund Processed</h2><p>Your refund of <strong>{{refundAmount}}</strong> for order <strong>{{orderName}}</strong> has been processed.</p><p>It may take a few business days for the funds to appear.</p>",
-    },
-  ];
+  }[] = useMemo(
+    () => [
+      {
+        key: "new_return",
+        label: "New Return",
+        color: "#D97706",
+        defaultSubject: "New return request {{returnId}} for {{orderName}}",
+        defaultBody:
+          "<h2>New Return Request</h2><p>A return request <strong>{{returnId}}</strong> has been submitted for order <strong>{{orderName}}</strong> by {{customerEmail}}.</p><p>Please review this return in your admin panel.</p>",
+      },
+      {
+        key: "approved",
+        label: "Approved",
+        color: "#059669",
+        defaultSubject: "Your return for {{orderName}} has been approved",
+        defaultBody:
+          "<h2>Return Approved</h2><p>Your return request for order <strong>{{orderName}}</strong> has been approved and is being processed.</p><p>We will notify you with further updates.</p>",
+      },
+      {
+        key: "rejected",
+        label: "Rejected",
+        color: "#DC2626",
+        defaultSubject: "Your return for {{orderName}} has been declined",
+        defaultBody:
+          "<h2>Return Declined</h2><p>Your return request for order <strong>{{orderName}}</strong> has been declined.</p><p><strong>Reason:</strong> {{rejectionReason}}</p><p>If you have questions, please contact the store.</p>",
+      },
+      {
+        key: "refunded",
+        label: "Refunded",
+        color: "#7C3AED",
+        defaultSubject: "Your refund for {{orderName}} has been processed",
+        defaultBody:
+          "<h2>Refund Processed</h2><p>Your refund of <strong>{{refundAmount}}</strong> for order <strong>{{orderName}}</strong> has been processed.</p><p>It may take a few business days for the funds to appear.</p>",
+      },
+    ],
+    [],
+  );
 
   const TEMPLATE_VARS = [
     { key: "orderName", label: "Order Name" },
@@ -562,7 +566,7 @@ export default function Notifications() {
       /* v8 ignore stop */
       setShowTemplatePreview(false);
     },
-    [emailTemplates],
+    [TEMPLATE_EVENTS, emailTemplates],
   );
 
   const insertVariable = useCallback(
@@ -617,7 +621,7 @@ export default function Notifications() {
       fd.set("emailTemplatesJson", JSON.stringify(updated));
       templateFetcher.submit(fd, { method: "post" });
     },
-    [emailTemplates, templateFetcher],
+    [TEMPLATE_EVENTS, emailTemplates, templateFetcher],
   );
 
   const saved = saveFetcher.data?.success === true;
@@ -1945,11 +1949,12 @@ export default function Notifications() {
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <Toggle
                 name="portalOtpEmailEnabled"
-                checked={otpEmailEnabled}
-                onChange={setOtpEmailEnabled}
+                checked={true}
+                onChange={() => {}}
                 label="Email OTP verification"
-                description="Send a 6-digit code to the customer's email before showing return results for email lookups"
+                description="Required for email lookups before return or order details are shown"
                 accentColor="#6366f1"
+                disabled
                 icon={
                   <svg
                     width="18"
@@ -1968,11 +1973,12 @@ export default function Notifications() {
               />
               <Toggle
                 name="portalOtpSmsEnabled"
-                checked={otpSmsEnabled}
-                onChange={setOtpSmsEnabled}
-                label="SMS / WhatsApp OTP verification"
-                description="Send a 6-digit code via SMS or WhatsApp before showing return results for phone lookups (requires WhatsApp to be configured above)"
+                checked={true}
+                onChange={() => {}}
+                label="Phone OTP verification"
+                description="Locked on for schema compatibility; phone OTP starts fail closed until SMS/WhatsApp delivery is implemented"
                 accentColor="#10b981"
+                disabled
                 icon={
                   <svg
                     width="18"
@@ -1993,15 +1999,15 @@ export default function Notifications() {
               style={{
                 marginTop: 12,
                 padding: "10px 14px",
-                background: "#FFF7ED",
+                background: "#ECFDF5",
                 borderRadius: "var(--rpm-radius-sm)",
                 fontSize: 12,
-                color: "#92400E",
+                color: "#065F46",
                 lineHeight: 1.6,
               }}
             >
-              When disabled, customers can look up returns directly without verification. Enable OTP
-              for added security — especially recommended for email and phone lookups.
+              Customer verification is locked on for production safety. Portal lookup APIs require a
+              verified session before returning order, customer, or return details.
             </div>
           </div>
 

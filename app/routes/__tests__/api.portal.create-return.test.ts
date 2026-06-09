@@ -54,6 +54,15 @@ vi.mock("../../lib/rate-limit.server", () => ({
 }));
 vi.mock("../../lib/portal-auth.server", () => ({
   verifyPortalCsrfToken: verifyPortalCsrfMock,
+  verifyPortalSession: vi.fn(async () => ({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "shopper@example.com",
+    matchedReturnIds: null,
+  })),
+  hashLookupValue: vi.fn(() => "hash"),
 }));
 vi.mock("../../lib/shopify-admin.server", () => ({
   fetchOrder: vi.fn(),
@@ -100,7 +109,15 @@ function jsonReq(body: unknown, method = "POST") {
   const init: RequestInit = { method };
   if (method !== "GET" && method !== "HEAD") {
     init.headers = { "Content-Type": "application/json" };
-    init.body = typeof body === "string" ? body : JSON.stringify(body);
+    init.body =
+      typeof body === "string"
+        ? body
+        : JSON.stringify({
+            customerEmail: "shopper@example.com",
+            portalToken: "verified-token",
+            sessionId: "session-1",
+            ...(body as Record<string, unknown>),
+          });
   }
   return new Request("https://app.example/api/portal/create-return", init);
 }

@@ -9,6 +9,7 @@ import {
   closeShopifyReturnBestEffort,
   type RefundMethodConfig,
 } from "../lib/shopify-admin.server";
+import { externalApiLogger } from "../lib/observability/logger.server";
 import prisma from "../db.server";
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -167,7 +168,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       message: "Refund processed successfully",
     });
   } catch (err) {
-    console.error("[external.returns.refund]", err);
+    externalApiLogger.error(
+      {
+        endpoint: "external.returns.refund",
+        shopId: auth.shopId,
+        keyId: auth.keyId,
+        returnId: id,
+        err,
+      },
+      "External return refund failed",
+    );
     return apiError(500, "INTERNAL_ERROR", "Failed to process refund");
   }
 };

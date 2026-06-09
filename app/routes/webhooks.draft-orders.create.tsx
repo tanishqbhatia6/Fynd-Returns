@@ -2,6 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { extractAffiliateOrderId } from "../lib/shopify-admin.server";
+import { webhookLogger } from "../lib/observability/logger.server";
 
 /**
  * Shopify draft_orders/create webhook handler.
@@ -23,9 +24,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (err) {
     /* v8 ignore start - defensive auth failure handling (rethrow Response, swallow others) */
     if (err instanceof Response) throw err;
-    console.error("[webhook:draft-orders/create] authenticate failed", {
-      error: err instanceof Error ? err.message : String(err),
-    });
+    webhookLogger.error(
+      { topic: "DRAFT_ORDERS_CREATE", err },
+      "Draft order create webhook authentication failed",
+    );
     return new Response();
     /* v8 ignore stop */
   }
@@ -81,7 +83,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   } catch (err) {
     /* v8 ignore start - defensive Error narrowing in catch */
-    console.error("[webhook:draft_orders/create]", err instanceof Error ? err.message : err);
+    webhookLogger.error({ topic: "DRAFT_ORDERS_CREATE", shop, err }, "Draft order create failed");
     /* v8 ignore stop */
   }
 

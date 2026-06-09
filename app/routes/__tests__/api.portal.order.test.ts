@@ -77,6 +77,15 @@ vi.mock("../../lib/fynd.server", () => ({
 }));
 vi.mock("../../lib/portal-auth.server", () => ({
   createPortalCsrfToken: createPortalCsrfTokenMock,
+  verifyPortalSession: vi.fn(async () => ({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "shopper@example.com",
+    matchedReturnIds: null,
+  })),
+  hashLookupValue: vi.fn(() => "hash"),
 }));
 // Use the REAL OrderAccessError class so instanceof works
 vi.mock("../../lib/shopify-admin.server", async () => {
@@ -280,7 +289,7 @@ describe("existing returns formatting", () => {
     prismaMock.session.findFirst.mockResolvedValue({ accessToken: "tok" });
   });
 
-  it("returns empty order-not-found response when Shopify has no order and no returns exist", async () => {
+  it("does not expose return metadata when Shopify has no order", async () => {
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(null);
     fetchOrderByFyndAffiliateIdMock.mockResolvedValue(null);
@@ -292,11 +301,11 @@ describe("existing returns formatting", () => {
     } as never);
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.existingReturns).toEqual([]);
-    expect(body.activeReturns).toEqual([]);
+    expect(body).not.toHaveProperty("existingReturns");
+    expect(body).not.toHaveProperty("activeReturns");
   });
 
-  it("filters 'activeReturns' to only non-terminal statuses", async () => {
+  it("does not expose existing returns before customer auth on order-not-found", async () => {
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
         id: "rc-1",
@@ -344,12 +353,8 @@ describe("existing returns formatting", () => {
       context: {},
     } as never);
     const body = await res.json();
-    expect(body.existingReturns).toHaveLength(4);
-    // Only pending + approved are active (non-terminal)
-    expect(body.activeReturns.map((r: { status: string }) => r.status)).toEqual([
-      "pending",
-      "approved",
-    ]);
+    expect(body).not.toHaveProperty("existingReturns");
+    expect(body).not.toHaveProperty("activeReturns");
   });
 
   it("uses formatReturnRequestId when returnRequestNo is null", async () => {

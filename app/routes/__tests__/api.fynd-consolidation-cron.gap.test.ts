@@ -171,16 +171,16 @@ describe("error fallback for non-Error throwables", () => {
 });
 
 describe("method/auth boundary cases", () => {
-  it("returns 405 with 'Method not allowed' body for GET without auth", async () => {
+  it("returns 401 with 'Unauthorized' body for GET without auth", async () => {
     process.env.CRON_SECRET = "s";
     const res = await loader({
       request: mkReq({ method: "GET" }),
       params: {},
       context: {},
     } as never);
-    expect(res.status).toBe(405);
+    expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.error).toBe("Method not allowed");
+    expect(body.error).toBe("Unauthorized");
   });
 
   it("returns 405 for non-GET via loader even when authorized", async () => {
@@ -208,18 +208,14 @@ describe("method/auth boundary cases", () => {
     expect(body.error).toBe("Unauthorized");
   });
 
-  it("denies on host '127.0.0.1.evil.com' is allowed (substring match) — documents current behavior", async () => {
-    // The implementation uses host.includes("127.0.0.1") so any host containing
-    // that literal substring is allowed when CRON_SECRET is unset. Locks in
-    // current behavior so future changes are reviewed deliberately.
+  it("denies spoofed localhost hostnames when CRON_SECRET is unset", async () => {
     delete process.env.CRON_SECRET;
-    runConsolidationForAllShopsMock.mockResolvedValueOnce([]);
     const res = await action({
       request: mkReq({ method: "POST", host: "127.0.0.1.example.com" }),
       params: {},
       context: {},
     } as never);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
   });
 });
 

@@ -89,13 +89,14 @@ The customer provides an order number, email, phone, or return request number. T
 1. Normalizes and SHA-256 hashes the lookup value via `hashLookupValue()`.
 2. Creates a `LookupSession` record with the hashed value, matched return IDs, and an expiry time.
 
-### Step 2: OTP Verification (Optional)
+### Step 2: OTP Verification
 
-If OTP is enabled (`portalOtpEmailEnabled` or `portalOtpSmsEnabled` in `ShopSettings`):
+Customer-facing portal lookups require verified identity by default. Email OTP is enabled by default through `portalOtpEmailEnabled` in `ShopSettings`; `portalOtpSmsEnabled` is a locked-on schema field, but phone OTP starts fail closed until a real SMS/WhatsApp OTP delivery path is implemented and verified:
 
-1. An OTP is sent to the customer's email or phone.
-2. The `LookupSession` records `otpTarget`, `otpSentAt`, and `attemptsCount`.
-3. On successful verification, `verifiedAt` is set.
+1. An OTP is sent to the customer's email.
+2. The OTP is bcrypt-hashed before storage in `otpTarget`; raw OTPs are never persisted.
+3. The `LookupSession` records `otpSentAt` and `attemptsCount` for cooldown and lockout enforcement.
+4. On successful verification, `verifiedAt` is set and `otpTarget` is cleared. Legacy SHA-256 OTP hashes are accepted only for pre-rollout sessions and upgraded on successful verification.
 
 ### Step 3: JWT Token Issuance
 
@@ -113,7 +114,14 @@ createPortalToken(payload)  // Signs with PORTAL_JWT_SECRET, 1-hour TTL
 
 ### Token Verification
 
-Subsequent portal API calls include the JWT in the `Authorization` header. The server verifies it via `verifyPortalToken()`, which returns `null` on any verification failure (expired, tampered, invalid signature).
+Subsequent portal API calls include the JWT in the `Authorization` header. Sensitive portal endpoints must use `verifyPortalSession()`, not only the low-level JWT decoder. The session verifier checks:
+
+- the JWT signature and expiry
+- the `LookupSession` row still exists
+- the session is verified
+- the stored token matches the presented token
+- the session is not expired
+- the session shop and lookup claims match the request scope
 
 ### Session Cleanup
 
@@ -215,7 +223,7 @@ a1b2c3d4e5f6a7b8c9d0e1f2:f1e2d3c4b5a6978800112233:4455667788...
 ### Key Management
 
 - **Production:** The `ENCRYPTION_KEY` environment variable must be exactly 64 hex characters (32 bytes). The app throws a fatal error on startup if this is missing or malformed.
-- **Development:** If `NODE_ENV=development` and no key is set, a deterministic dev-only key is used with a console warning.
+- **Development:** If `NODE_ENV=development` and no key is set, a deterministic dev-only key is used with a structured warning.
 - **Key generation command:** `openssl rand -hex 32`
 
 ### Security Properties
@@ -290,10 +298,15 @@ The customer portal runs on the merchant's Shopify storefront domain and makes c
 
 **Production:**
 
-| Pattern                  | Example                              |
-|--------------------------|--------------------------------------|
-| `*.myshopify.com`        | `https://my-store.myshopify.com`     |
-| `*.shopify.com`          | `https://admin.shopify.com`          |
+| Source                                  | Example                              |
+|-----------------------------------------|--------------------------------------|
+| Exact `?shop=` storefront origin         | `https://my-store.myshopify.com`     |
+| Exact `PORTAL_ALLOWED_ORIGINS` entries   | `https://returns.brand.com`          |
+
+Production must not use broad `*.myshopify.com` or `*.shopify.com` CORS
+patterns. The portal API derives the expected storefront origin from the
+normalized `shop` query parameter and reflects only that exact origin, unless an
+explicit origin is configured in `PORTAL_ALLOWED_ORIGINS`.
 
 **Development only (NODE_ENV !== "production"):**
 
@@ -309,7 +322,7 @@ The customer portal runs on the merchant's Shopify storefront domain and makes c
 | `Access-Control-Allow-Origin`    | Reflected origin (if allowed)      |
 | `Vary`                           | `Origin`                           |
 | `Access-Control-Allow-Methods`   | `GET, POST, OPTIONS`               |
-| `Access-Control-Allow-Headers`   | `Content-Type, Authorization`      |
+| `Access-Control-Allow-Headers`   | `Content-Type, Authorization, X-Portal-Token` |
 | `Access-Control-Max-Age`         | `86400` (24 hours preflight cache) |
 
 ### Implementation
@@ -414,6 +427,7 @@ The following environment variables contain sensitive material and must be prote
 | `DATABASE_URL`        | PostgreSQL connection string         | Use SSL in production                  |
 | `SCOPES`              | Shopify OAuth scopes                 | Comma-separated, least-privilege       |
 | `SHOPIFY_APP_URL`     | App base URL                         | Must be HTTPS in production            |
+| `FYND_WEBHOOK_SECRET` | Legacy/global Fynd webhook secret    | Minimum 32 characters in production    |
 
 ### Generation Commands
 
@@ -422,6 +436,9 @@ The following environment variables contain sensitive material and must be prote
 openssl rand -base64 48
 
 # Generate ENCRYPTION_KEY (64 hex characters = 32 bytes)
+openssl rand -hex 32
+
+# Generate FYND_WEBHOOK_SECRET
 openssl rand -hex 32
 ```
 
@@ -444,20 +461,27 @@ Use this checklist before deploying to production:
 - [ ] `ENCRYPTION_KEY` is set and exactly 64 hex characters
 - [ ] `SHOPIFY_API_SECRET` is set and matches the Shopify Partners dashboard
 - [ ] `DATABASE_URL` uses SSL (`?sslmode=require` or equivalent)
+- [ ] `REDIS_URL` is set in production so rate limits are shared across pods
+- [ ] `SCOPES` is set to the least-privilege Shopify OAuth scopes required by the app
+- [ ] `APP_BILLING_MODE` is `production` or `prod` so billing cannot fail open
+- [ ] `APP_MANAGED_PRICING_HANDLE` is set for Shopify Managed Pricing
+- [ ] `PORTAL_CSRF_REQUIRED` is not set to `false` in production
+- [ ] `FYND_WEBHOOK_SECRET` is set for the legacy/global Fynd webhook receiver, and per-shop webhook secrets are generated for shop-specific callbacks
+- [ ] `PORTAL_ALLOWED_ORIGINS`, if set, contains only exact origin-only public `https://` URLs with no wildcards
 - [ ] All secrets are managed via a secrets manager, not plaintext config files
 - [ ] No secrets are committed to the repository
 
 ### Network & Transport
 
-- [ ] `SHOPIFY_APP_URL` uses HTTPS
-- [ ] CORS only allows `*.myshopify.com` and `*.shopify.com` origins (no localhost in production)
+- [ ] `SHOPIFY_APP_URL` is an origin-only HTTPS URL on a stable public hostname
+- [ ] Portal CORS allows only the exact shop origin or explicitly configured trusted origins
 - [ ] All outbound webhook subscriptions use HTTPS URLs
 - [ ] Fynd API connections use HTTPS
 
 ### Rate Limiting
 
 - [ ] Rate limiting is active on all portal and external API endpoints
-- [ ] Consider replacing in-memory rate limiter with Redis for multi-instance deployments
+- [ ] Redis-backed rate limiting is enabled for all production deployments
 - [ ] OTP endpoints are tightly limited (5 requests per 5 minutes)
 
 ### Data Protection
@@ -466,6 +490,7 @@ Use this checklist before deploying to production:
 - [ ] SMTP passwords are stored securely (consider encrypting `smtpPass`)
 - [ ] WhatsApp API keys are stored securely (consider encrypting `whatsappApiKey`)
 - [ ] Customer lookup values are SHA-256 hashed before storage
+- [ ] Portal OTPs are bcrypt-hashed before storage and cleared after successful verification
 - [ ] Expired `LookupSession` records are cleaned up periodically
 
 ### API Keys

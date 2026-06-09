@@ -117,10 +117,10 @@ The customer provides their order identifier and contact information:
 **API Call:** `POST /api/portal/lookup`
 
 **Behavior:**
-1. The portal sends the order number and email/phone to the lookup endpoint.
+1. The portal sends the order number and customer email to the lookup endpoint.
 2. The server queries Shopify for the order and validates it belongs to the customer.
-3. If OTP is required (`portalOtpEmailEnabled` or `portalOtpSmsEnabled`), the server creates a `LookupSession` and returns a `sessionId`.
-4. If OTP is not required, the server returns the order details directly with a JWT token.
+3. Sensitive lookups require verified customer identity by default. The server creates a `LookupSession`, sends an OTP to the verified contact, and returns only `sessionId` plus a masked contact hint until verification completes.
+4. After successful OTP verification, the portal receives a short-lived customer token and can fetch the minimum order/return fields needed to submit the return.
 
 **Lookup Session:**
 - Created in the `LookupSession` table.
@@ -129,7 +129,7 @@ The customer provides their order identifier and contact information:
 
 ### Step 2: OTP Verification
 
-If OTP is enabled, the customer must verify their identity with a one-time password.
+The customer must verify their identity with a one-time password before sensitive portal data is returned.
 
 **OTP Send:** `POST /api/portal/otp/send`
 
@@ -141,8 +141,8 @@ If OTP is enabled, the customer must verify their identity with a one-time passw
 
 **Behavior:**
 1. Generates a 6-digit numeric OTP.
-2. Hashes the OTP with SHA-256 and stores it on the `LookupSession`.
-3. Sends the OTP to the customer via email (using SMTP) or SMS (if WhatsApp/SMS is configured).
+2. Hashes the OTP with bcrypt and stores only the hash on the `LookupSession`.
+3. Sends the OTP to the customer via email using SMTP. Phone OTP starts fail closed until a real SMS/WhatsApp OTP delivery path is implemented and verified.
 4. Enforces rate limits:
    - 60-second cooldown between sends.
    - Maximum 5 attempts per session.
@@ -157,12 +157,12 @@ If OTP is enabled, the customer must verify their identity with a one-time passw
 ```
 
 **Behavior:**
-1. Hashes the submitted OTP and compares with the stored hash.
-2. On success, issues a JWT token with the session context.
-3. Returns order details for the next step.
+1. Compares the submitted OTP with the stored bcrypt hash.
+2. Accepts legacy SHA-256 OTP hashes only for sessions created before the bcrypt rollout, then upgrades the session state on successful verification.
+3. On success, sets `verifiedAt`, clears the stored OTP hash, and issues a short-lived portal JWT with the session context.
+4. The portal must present that token before sensitive order details or return creation are allowed.
 
-**Dev Mode Bypass:**
-When `appMode` is set to `"dev"` in shop settings, OTP verification can be bypassed for testing. The system logs a warning when dev mode is active.
+OTP verification cannot be skipped in production. Phone OTP starts fail closed until a real SMS/WhatsApp OTP delivery path is implemented and verified.
 
 **UI Details:**
 - OTP input field uses `letter-spacing: 0.5em` and center alignment for a PIN-entry style.
@@ -272,7 +272,7 @@ The Track Return tab allows customers to look up and monitor their existing retu
 
 ### Lookup
 
-The customer enters their order number and email/phone. The portal calls `POST /api/portal/returns` to fetch matching return cases.
+The customer enters their order number and verified email. The portal calls `POST /api/portal/returns` to fetch matching return cases.
 
 ### Return Card Display
 
@@ -345,7 +345,7 @@ The Track Order tab allows customers to look up their order status and fulfillme
 
 `POST /api/portal/order`
 
-The customer enters their order number and email/phone. The server queries Shopify for the order and returns:
+The customer enters their order number and verified email. The server queries Shopify for the order and returns:
 
 - Order name and date
 - Financial status (paid, refunded, partially refunded)

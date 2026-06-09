@@ -132,13 +132,13 @@ describe("GET /api/fynd-consolidation-cron (loader)", () => {
     expect(res.status).toBe(200);
   });
 
-  it("GET without auth returns 405", async () => {
+  it("GET without auth returns 401", async () => {
     process.env.CRON_SECRET = "topsecret";
     const res = await loader({
       request: mkReq({ method: "GET" }),
       params: {},
       context: {},
     } as never);
-    expect(res.status).toBe(405);
+    expect(res.status).toBe(401);
   });
 });

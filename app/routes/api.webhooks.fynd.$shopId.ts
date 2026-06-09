@@ -27,6 +27,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import type { FyndWebhookPayload } from "../lib/fynd-webhook.server";
 import { readBoundedBody, authenticateWebhook } from "../lib/fynd-webhook-verify.server";
+import { webhookLogger } from "../lib/observability/logger.server";
 
 export const loader = async (_args: LoaderFunctionArgs) => {
   return Response.json({ ok: true, method: "POST", model: "per-shop" });
@@ -74,7 +75,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   // Either path is sufficient on its own — no need for both.
   const authResult = authenticateWebhook(request, rawBodyText, decryptedSecret);
   if (!authResult.ok) {
-    console.warn(`[Fynd webhook /${shopId}] Auth failed: ${authResult.reason}`);
+    webhookLogger.warn(
+      { webhook: "fynd", shopId, reason: authResult.reason },
+      "Per-shop Fynd webhook authentication failed",
+    );
     return Response.json({ error: "Webhook authentication failed" }, { status: 401 });
   }
 
@@ -84,7 +88,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (webhookTimestamp) {
     const ts = new Date(webhookTimestamp).getTime();
     if (!isNaN(ts) && Math.abs(Date.now() - ts) > 5 * 60_000) {
-      console.warn(`[Fynd webhook /${shopId}] Stale webhook rejected`);
+      webhookLogger.warn(
+        { webhook: "fynd", shopId, timestampDriftMs: Math.abs(Date.now() - ts) },
+        "Stale per-shop Fynd webhook rejected",
+      );
       return Response.json({ error: "Webhook timestamp too old" }, { status: 401 });
     }
   }
@@ -96,7 +103,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     ({ payload, eventType } = unwrapFyndWebhookPayload(rawBodyText));
   } catch (parseErr) {
     const errMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
-    console.error(`[Fynd webhook /${shopId}] Parse error:`, errMsg);
+    webhookLogger.error(
+      { webhook: "fynd", shopId, err: parseErr },
+      "Per-shop Fynd webhook JSON parse failed",
+    );
     try {
       await prisma.fyndWebhookLog.create({
         data: {
@@ -140,13 +150,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   try {
     const result = await processFyndWebhook(payload, rawBodyText, eventType);
     if (!result.ok) {
-      console.error(`[Fynd webhook /${shopId}]`, result.error);
+      webhookLogger.error(
+        { webhook: "fynd", shopId, error: result.error },
+        "Per-shop Fynd webhook processing returned an error",
+      );
       return Response.json({ error: result.error }, { status: 500 });
     }
     return Response.json({ ok: true, action: result.action, returnCaseId: result.returnCaseId });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[Fynd webhook /${shopId}] Error:`, msg);
+    webhookLogger.error({ webhook: "fynd", shopId, err }, "Per-shop Fynd webhook failed");
     return Response.json({ error: "Webhook processing failed" }, { status: 500 });
   }
 };

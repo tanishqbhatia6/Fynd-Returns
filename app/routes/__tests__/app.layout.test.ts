@@ -114,6 +114,27 @@ describe("app.tsx loader", () => {
     });
   });
 
+  it("preserves Shopify embedded params when redirecting to billing", async () => {
+    getBillingStatusMock.mockResolvedValueOnce({ hasAccess: false });
+
+    let thrown: unknown;
+    try {
+      await loader({
+        request: mkReq("/app?embedded=1&shop=store.myshopify.com&host=abc&id_token=token"),
+        params: {},
+        context: {},
+      } as never);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Response);
+    const location = (thrown as Response).headers.get("location") ?? "";
+    expect(location).toBe(
+      "/app/billing?embedded=1&shop=store.myshopify.com&host=abc&id_token=token",
+    );
+  });
+
   it("does NOT check billing on /app/billing itself (avoids redirect loop)", async () => {
     await loader({ request: mkReq("/app/billing"), params: {}, context: {} } as never);
     expect(getBillingStatusMock).not.toHaveBeenCalled();

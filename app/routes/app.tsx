@@ -246,7 +246,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (!onBillingRoute) {
     const billing = await getBillingStatus(shopDomain, admin);
     if (!billing.hasAccess) {
-      throw redirect("/app/billing");
+      throw redirect(`/app/billing${url.search}`);
     }
   }
 

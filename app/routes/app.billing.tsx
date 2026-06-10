@@ -1,5 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { Link, redirect, useLoaderData } from "react-router";
+import jwt from "jsonwebtoken";
 import { authenticate } from "../shopify.server";
 import { AppPage } from "../components/AppPage";
 import {
@@ -12,6 +13,7 @@ import {
 import {
   buildAdminHostParam,
   getEmbeddedAdminLaunchParams,
+  normalizeShop,
 } from "../lib/shopify-admin-launch.server";
 
 /**
@@ -50,7 +52,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const shopDomain = await getBillingActionShop(request);
   const fd = await request.formData();
   const intent = String(fd.get("intent") ?? "");
 
@@ -58,9 +60,54 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { error: "Unsupported billing action" };
   }
 
-  await selectFreeBillingPlan(session.shop);
-  throw redirect(getPostSelectionRedirect(request, session.shop));
+  await selectFreeBillingPlan(shopDomain);
+  throw redirect(getPostSelectionRedirect(request, shopDomain));
 };
+
+type ShopifyAdminSessionTokenClaims = {
+  dest?: string;
+  aud?: string;
+};
+
+async function getBillingActionShop(request: Request): Promise<string> {
+  try {
+    const { session } = await authenticate.admin(request);
+    return session.shop;
+  } catch (error) {
+    const fallbackShop = verifyBillingActionSessionToken(request);
+    if (fallbackShop) return fallbackShop;
+    throw error;
+  }
+}
+
+function verifyBillingActionSessionToken(request: Request): string | null {
+  const url = new URL(request.url);
+  const token =
+    url.searchParams.get("id_token") ??
+    request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ??
+    null;
+  if (!token || !process.env.SHOPIFY_API_SECRET) return null;
+
+  try {
+    const claims = jwt.verify(token, process.env.SHOPIFY_API_SECRET, {
+      algorithms: ["HS256"],
+    }) as ShopifyAdminSessionTokenClaims;
+
+    if (process.env.SHOPIFY_API_KEY && claims.aud && claims.aud !== process.env.SHOPIFY_API_KEY) {
+      return null;
+    }
+
+    const tokenShop = normalizeShop(claims.dest ?? null);
+    if (!tokenShop) return null;
+
+    const queryShop = normalizeShop(url.searchParams.get("shop"));
+    if (queryShop && queryShop !== tokenShop) return null;
+
+    return tokenShop;
+  } catch {
+    return null;
+  }
+}
 
 function getPostSelectionRedirect(request: Request, shopDomain: string): string {
   const url = new URL(request.url);

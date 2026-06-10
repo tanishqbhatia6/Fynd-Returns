@@ -11,6 +11,7 @@
  * redirects from. Free plan selection posts to the route action.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import jwt from "jsonwebtoken";
 
 const {
   authenticateMock,
@@ -239,6 +240,71 @@ describe("app.billing action", () => {
     expect(location).toContain("host=YWRtaW4uc2hvcGlmeS5jb20vc3RvcmUvc3RvcmU");
     expect(location).toContain("embedded=1");
     expect(selectFreeBillingPlanMock).toHaveBeenCalledWith("store.myshopify.com");
+  });
+
+  it("accepts Shopify session-token fallback for embedded data POSTs", async () => {
+    process.env.SHOPIFY_API_KEY = "client-id";
+    process.env.SHOPIFY_API_SECRET = "test-secret";
+    authenticateMock.mockRejectedValueOnce(new Error("Bad Request"));
+    const token = jwt.sign(
+      {
+        dest: "https://store.myshopify.com",
+        aud: "client-id",
+        sub: "81835655318",
+      },
+      "test-secret",
+      { algorithm: "HS256", expiresIn: "5m" },
+    );
+    const fd = new FormData();
+    fd.set("intent", "select-free-plan");
+    const req = new Request(
+      `https://app.example/app/billing.data?embedded=1&shop=store.myshopify.com&host=abc&id_token=${token}`,
+      {
+        method: "POST",
+        body: fd,
+      },
+    );
+
+    let thrown: unknown;
+    try {
+      await action({ request: req, params: {}, context: {} } as never);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Response);
+    expect((thrown as Response).headers.get("Location")).toContain("/app?");
+    expect(selectFreeBillingPlanMock).toHaveBeenCalledWith("store.myshopify.com");
+  });
+
+  it("does not use session-token fallback when the token shop mismatches the query shop", async () => {
+    process.env.SHOPIFY_API_KEY = "client-id";
+    process.env.SHOPIFY_API_SECRET = "test-secret";
+    const authError = new Error("Bad Request");
+    authenticateMock.mockRejectedValueOnce(authError);
+    const token = jwt.sign(
+      {
+        dest: "https://other.myshopify.com",
+        aud: "client-id",
+        sub: "81835655318",
+      },
+      "test-secret",
+      { algorithm: "HS256", expiresIn: "5m" },
+    );
+    const fd = new FormData();
+    fd.set("intent", "select-free-plan");
+    const req = new Request(
+      `https://app.example/app/billing.data?shop=store.myshopify.com&id_token=${token}`,
+      {
+        method: "POST",
+        body: fd,
+      },
+    );
+
+    await expect(action({ request: req, params: {}, context: {} } as never)).rejects.toThrow(
+      "Bad Request",
+    );
+    expect(selectFreeBillingPlanMock).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported billing actions", async () => {

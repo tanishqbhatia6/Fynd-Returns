@@ -22,6 +22,7 @@ ENV PORT=8080
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
 COPY --from=build /app/public ./public
+COPY --from=build /app/app/portal ./app/portal
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/instrumentation.server.mjs ./instrumentation.server.mjs

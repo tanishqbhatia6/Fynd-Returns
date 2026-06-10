@@ -1,0 +1,19 @@
+app: "Fynd-Returns"
+region: "asia-south1"
+handler: "handler.handler"
+language: "nodejs/24"
+
+serverlessConfig:
+  serverlessId: "f562c331-309c-45ba-9387-0d626229163b"
+  Name: "Fynd-Returns"
+  Runtime: "git"
+  Scaling:
+    AutoStop: false
+    Min: 1
+    Max: 1
+    MaxIdleTime: 300
+  Resources:
+    CPU: 0.1
+    MemoryMB: 128
+    MemoryMaxMB: 128
+  Timeout: 60

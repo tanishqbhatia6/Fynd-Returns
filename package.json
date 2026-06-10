@@ -93,6 +93,7 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/bcryptjs": "^2.4.6",
+    "@types/ioredis-mock": "^8.2.7",
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^22.19.0",
     "@types/nodemailer": "^7.0.11",

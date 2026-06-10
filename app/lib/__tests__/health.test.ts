@@ -108,12 +108,12 @@ describe("checkRedis", () => {
     expect(res.status).toBe("ok");
   });
 
-  it("is an error when Redis is missing in production", async () => {
+  it("is ok when Redis is missing in production", async () => {
     process.env.NODE_ENV = "production";
     delete process.env.REDIS_URL;
     const res = await checkRedis();
-    expect(res.status).toBe("error");
-    expect(res.message).toMatch(/REDIS_URL/);
+    expect(res.status).toBe("ok");
+    expect(res.message).toBe("Redis disabled; Postgres rate limiter active");
   });
 });
 

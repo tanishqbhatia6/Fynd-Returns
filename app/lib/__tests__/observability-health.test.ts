@@ -151,15 +151,15 @@ describe("checkRedis", () => {
     delete process.env.REDIS_URL;
     const result = await checkRedis();
     expect(result.status).toBe("ok");
-    expect(result.message).toBe("Redis disabled outside production");
+    expect(result.message).toBe("Redis disabled; Postgres rate limiter active");
   });
 
-  it("returns error when REDIS_URL is unset in production", async () => {
+  it("returns ok when REDIS_URL is unset in production", async () => {
     process.env.NODE_ENV = "production";
     delete process.env.REDIS_URL;
     const result = await checkRedis();
-    expect(result.status).toBe("error");
-    expect(result.message).toBe("REDIS_URL is required in production");
+    expect(result.status).toBe("ok");
+    expect(result.message).toBe("Redis disabled; Postgres rate limiter active");
   });
 });
 

@@ -130,7 +130,7 @@ This runs `shopify app deploy` to push your app configuration to Shopify.
 | `SHOPIFY_API_KEY`    | Shopify app API key from Partner Dashboard                 | `abc123def456...`                            |
 | `SHOPIFY_API_SECRET` | Shopify app API secret from Partner Dashboard              | `shpss_abc123...`                            |
 | `SCOPES`             | Shopify OAuth scopes                                       | `read_orders,write_orders`                   |
-| `REDIS_URL`          | Redis connection string for production rate limiting       | `rediss://default:...@redis.example.com:6379` |
+| `REDIS_URL`          | Optional Redis connection string for rate limiting; Postgres is used when unset | `rediss://default:...@redis.example.com:6379` |
 | `CRON_SECRET`        | Secret for scheduled/cron endpoints                        | `32+ random characters`                      |
 | `PORTAL_JWT_SECRET`  | Secret for signing portal JWT tokens (min 32 chars)        | `a-secure-random-string-at-least-32-chars`   |
 | `FYND_WEBHOOK_SECRET`| Secret for legacy/global Fynd webhook authentication       | `32+ random characters`                      |

@@ -3,7 +3,7 @@
  *
  * Targets uncovered branches not exercised by the existing tests:
  *   - Module-load production warning (NODE_ENV=production + WEB_CONCURRENCY>1
- *     + no REDIS_URL) — line 44 in the source.
+ *     + no shared rate-limit backend).
  *   - Periodic in-memory cleanup setInterval purging expired entries — the
  *     callback body (lines 32-34) only runs when the timer fires.
  *   - rateLimiterKeysActive observable callback (line 39) — only invoked when
@@ -47,12 +47,18 @@ afterEach(() => {
 });
 
 describe("rate-limit gap — production warning at module load", () => {
-  it("throws when NODE_ENV=production and REDIS_URL is unset", async () => {
+  it("warns when NODE_ENV=production and no shared rate-limit backend is set", async () => {
     process.env.NODE_ENV = "production";
     process.env.WEB_CONCURRENCY = "4";
     delete process.env.REDIS_URL;
+    delete process.env.DATABASE_URL;
 
-    await expect(import("../rate-limit.server")).rejects.toThrow(/REDIS_URL is required/);
+    await import("../rate-limit.server");
+
+    expect(securityLoggerMock.warn).toHaveBeenCalledWith(
+      { webConcurrency: "4" },
+      "WEB_CONCURRENCY>1 detected with no REDIS_URL or DATABASE_URL. In-memory rate limiting is per-replica.",
+    );
   });
 
   it("does not warn when REDIS_URL is set in production", async () => {
@@ -67,12 +73,18 @@ describe("rate-limit gap — production warning at module load", () => {
     expect(messages.find((m) => m.includes("[rate-limit]"))).toBeUndefined();
   });
 
-  it("still throws when WEB_CONCURRENCY is unset because Redis is mandatory in production", async () => {
+  it("does not warn when WEB_CONCURRENCY is unset", async () => {
     process.env.NODE_ENV = "production";
     delete process.env.WEB_CONCURRENCY;
     delete process.env.REDIS_URL;
+    delete process.env.DATABASE_URL;
 
-    await expect(import("../rate-limit.server")).rejects.toThrow(/REDIS_URL is required/);
+    await import("../rate-limit.server");
+
+    expect(securityLoggerMock.warn).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining("In-memory rate limiting is per-replica"),
+    );
   });
 
   it("does not warn when NODE_ENV is not production", async () => {
@@ -254,6 +266,7 @@ describe("rate-limit gap — Redis path edge branches", () => {
   });
 
   it("logs Redis EVAL failures through the security logger", async () => {
+    delete process.env.DATABASE_URL;
     const fakeRedis = {
       eval: vi.fn().mockRejectedValue("string-rejection"),
     };
@@ -273,10 +286,39 @@ describe("rate-limit gap — Redis path edge branches", () => {
 
     expect(securityLoggerMock.warn).toHaveBeenCalledWith(
       { err: "string-rejection" },
-      "Rate limiter Redis unavailable on this request; falling back to in-memory",
+      "Rate limiter Redis unavailable on this request; falling back to Postgres",
     );
 
     redisMod.__setRedisForTests(null);
     mod.__resetRateLimitForTests();
+  });
+});
+
+describe("rate-limit gap — Postgres fallback", () => {
+  it("uses Postgres rate-limit buckets when Redis is absent", async () => {
+    process.env.DATABASE_URL = "postgresql://user:pass@localhost:5432/app";
+    delete process.env.REDIS_URL;
+
+    const queryRaw = vi.fn().mockResolvedValue([{ count: 1, retryAfterMs: 60_000 }]);
+    const executeRaw = vi.fn().mockResolvedValue(0);
+
+    vi.doMock("../../db.server", () => ({
+      default: {
+        $queryRaw: queryRaw,
+        $executeRaw: executeRaw,
+        $on: vi.fn(),
+      },
+    }));
+
+    const mod = await import("../rate-limit.server");
+    mod.__resetRateLimitForTests();
+
+    const req = new Request("https://app.example.com/api/x?shop=t.myshopify.com", {
+      headers: { "x-forwarded-for": "10.82.0.1" },
+    });
+    const result = await mod.checkRateLimit(req, "portal.otp.send");
+
+    expect(result).toEqual({ allowed: true, remaining: 4, retryAfterMs: 0 });
+    expect(queryRaw).toHaveBeenCalledOnce();
   });
 });

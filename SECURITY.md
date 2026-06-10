@@ -28,14 +28,14 @@
 | `SHOPIFY_API_SECRET` | Yes | From Shopify Partner Dashboard |
 | `SCOPES` | Yes | Comma-separated OAuth scopes |
 | `SHOPIFY_APP_URL` | Yes | App URL (e.g. `https://your-app.onrender.com`) |
-| `REDIS_URL` | Yes | Redis connection string for production rate limiting |
+| `REDIS_URL` | No | Optional Redis connection string for rate limiting; production falls back to Postgres rate-limit buckets |
 | `CRON_SECRET` | Yes | Bearer/shared secret for cron endpoints |
 | `FYND_WEBHOOK_SECRET` | Yes | Shared secret for the legacy/global Fynd webhook receiver. Generate: `openssl rand -hex 32` |
 
 ## Deployment checklist
 
 1. Set `ENCRYPTION_KEY`, `PORTAL_JWT_SECRET`, `CRON_SECRET`, and `FYND_WEBHOOK_SECRET` with cryptographically secure values.
-2. Set `REDIS_URL`; production startup rejects missing Redis unless `REQUIRE_REDIS=false` is used as a temporary emergency rollback.
+2. Redis is optional. If `REDIS_URL` is unset, production rate limiting uses Postgres via `DATABASE_URL`.
 3. Run `npx prisma migrate deploy` after deploy.
 4. Use HTTPS only. Do not expose credentials over HTTP.
 5. Rotate `ENCRYPTION_KEY` only with `ENCRYPTION_KEYS_PREVIOUS` and `scripts/backfill-rotate-secrets.mjs`.

@@ -6,7 +6,6 @@ const script = join(process.cwd(), "scripts/production-preflight.mjs");
 
 const validEnv = {
   DATABASE_URL: "postgresql://user:pass@localhost:5432/returnpromax",
-  REDIS_URL: "redis://localhost:6379",
   SHOPIFY_API_KEY: "test_key",
   SHOPIFY_API_SECRET: "test_secret",
   SHOPIFY_APP_URL: "https://returns.returnpromax.com",
@@ -49,6 +48,5 @@ describe("scripts/production-preflight.mjs", () => {
     expect(res.stderr).toContain("Production readiness preflight failed");
     expect(res.stderr).toContain("Production environment contract failed");
     expect(res.stderr).toContain("Missing DATABASE_URL");
-    expect(res.stderr).toContain("Missing REDIS_URL");
   });
 });

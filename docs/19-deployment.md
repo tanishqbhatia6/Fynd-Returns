@@ -39,8 +39,6 @@ services:
         fromDatabase:
           name: returnpromax-db
           property: connectionString
-      - key: REDIS_URL
-        sync: false
       - key: SHOPIFY_API_KEY
         sync: false
       - key: SHOPIFY_API_SECRET
@@ -155,7 +153,7 @@ The app requires Node.js >= 22.12 (specified in `package.json` engines).
 | `SCOPES`            | Shopify OAuth scopes                                 | `read_orders,write_orders`       |
 | `PORTAL_JWT_SECRET` | Secret for signing portal JWT tokens                 | 64 hex characters                |
 | `ENCRYPTION_KEY`    | AES encryption key for Fynd credentials              | 64 hex characters                |
-| `REDIS_URL`         | Redis connection string for production rate limiting | `rediss://...`                   |
+| `REDIS_URL`         | Optional Redis connection string for rate limiting; Postgres is used when unset | `rediss://...`                   |
 | `CRON_SECRET`       | Secret for scheduled/cron endpoints                  | 32+ random characters            |
 | `FYND_WEBHOOK_SECRET` | Secret for legacy/global Fynd webhook authentication | 32+ random characters          |
 

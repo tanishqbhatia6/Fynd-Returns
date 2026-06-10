@@ -17,7 +17,6 @@ function runValidator(env: Record<string, string | undefined>) {
 
 const validEnv = {
   DATABASE_URL: "postgresql://user:pass@localhost:5432/returnpromax",
-  REDIS_URL: "redis://localhost:6379",
   SHOPIFY_API_KEY: "test_key",
   SHOPIFY_API_SECRET: "test_secret",
   SHOPIFY_APP_URL: "https://returns.returnpromax.com",
@@ -42,11 +41,21 @@ describe("scripts/validate-production-env.mjs", () => {
     expect(res.status).toBe(1);
     expect(res.stderr).toContain("Production environment validation failed");
     expect(res.stderr).toContain("Missing DATABASE_URL");
-    expect(res.stderr).toContain("Missing REDIS_URL");
     expect(res.stderr).toContain("Missing SCOPES");
     expect(res.stderr).toContain("Missing APP_BILLING_MODE");
     expect(res.stderr).toContain("Missing APP_MANAGED_PRICING_HANDLE");
     expect(res.stderr).toContain("Missing FYND_WEBHOOK_SECRET");
+  });
+
+  it("allows Redis to be omitted because Postgres backs production rate limits", () => {
+    const res = runValidator(validEnv);
+    expect(res.status).toBe(0);
+  });
+
+  it("validates REDIS_URL when Redis is explicitly configured", () => {
+    const res = runValidator({ ...validEnv, REDIS_URL: "https://not-redis.example.com" });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain("REDIS_URL must use one of: redis:, rediss:");
   });
 
   it("skips only explicit development and test modes", () => {

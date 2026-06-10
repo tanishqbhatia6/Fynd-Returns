@@ -70,8 +70,8 @@ export async function checkDatabase(): Promise<HealthCheckResult> {
 }
 
 /**
- * Check Redis connectivity. Production readiness is degraded if Redis is not
- * configured or not reachable because rate limiting must be fleet-wide.
+ * Check optional Redis connectivity. Missing Redis is acceptable because the
+ * rate limiter uses Postgres as the production shared backend.
  */
 export async function checkRedis(): Promise<HealthCheckResult> {
   const start = performance.now();
@@ -79,10 +79,7 @@ export async function checkRedis(): Promise<HealthCheckResult> {
   if (!configured) {
     const latencyMs = Math.round(performance.now() - start);
     redisHealthValue = 0;
-    if (process.env.NODE_ENV === "production") {
-      return { status: "error", latencyMs, message: "REDIS_URL is required in production" };
-    }
-    return { status: "ok", latencyMs, message: "Redis disabled outside production" };
+    return { status: "ok", latencyMs, message: "Redis disabled; Postgres rate limiter active" };
   }
 
   const redis = getRedis();

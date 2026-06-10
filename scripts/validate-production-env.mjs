@@ -9,7 +9,6 @@ if (skipValidation) {
 
 const required = [
   "DATABASE_URL",
-  "REDIS_URL",
   "SHOPIFY_API_KEY",
   "SHOPIFY_API_SECRET",
   "SHOPIFY_APP_URL",
@@ -166,7 +165,9 @@ function validatePortalAllowedOrigins() {
 }
 
 requireUrl("DATABASE_URL", ["postgresql:", "postgres:"]);
-requireUrl("REDIS_URL", ["redis:", "rediss:"]);
+if (process.env.REDIS_URL?.trim()) {
+  requireUrl("REDIS_URL", ["redis:", "rediss:"]);
+}
 requireHttpsUrl("SHOPIFY_APP_URL");
 requireHex64("ENCRYPTION_KEY");
 requireMinLength("PORTAL_JWT_SECRET", 32);

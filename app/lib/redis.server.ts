@@ -2,10 +2,8 @@
  * Redis client.
  *
  * Activation:
- *   - In production, REDIS_URL is mandatory unless REQUIRE_REDIS=false is set
- *     as a temporary emergency rollback.
- *   - Outside production, if REDIS_URL is unset, getRedis() returns null and
- *     consumers fall back to their in-process implementation.
+ *   - If REDIS_URL is unset, getRedis() returns null and consumers fall back
+ *     to their non-Redis implementation.
  *   - If REDIS_URL is set but Redis is unreachable, the client logs once and
  *     also returns null on each call (lazy reconnect handled by ioredis).
  *
@@ -20,14 +18,6 @@ import { redisFailureCounter } from "./observability/metrics.server";
 import { redisLogger } from "./observability/logger.server";
 
 type RedisClient = Redis;
-
-if (
-  process.env.NODE_ENV === "production" &&
-  String(process.env.REQUIRE_REDIS ?? "true").toLowerCase() !== "false" &&
-  !process.env.REDIS_URL?.trim()
-) {
-  throw new Error("REDIS_URL is required in production. Set REQUIRE_REDIS=false only for a temporary emergency rollback.");
-}
 
 let client: RedisClient | null = null;
 let initAttempted = false;

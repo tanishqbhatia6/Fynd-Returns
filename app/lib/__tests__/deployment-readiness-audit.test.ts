@@ -11,7 +11,6 @@ describe("deployment readiness audit", () => {
     const workflow = read(".github/workflows/ci.yml");
     const requiredBuildEnv = [
       "DATABASE_URL",
-      "REDIS_URL",
       "SHOPIFY_API_KEY",
       "SHOPIFY_API_SECRET",
       "SHOPIFY_APP_URL",
@@ -48,7 +47,6 @@ describe("deployment readiness audit", () => {
     const example = read(".env.example");
     for (const key of [
       "DATABASE_URL",
-      "REDIS_URL",
       "SHOPIFY_API_KEY",
       "SHOPIFY_API_SECRET",
       "SHOPIFY_APP_URL",
@@ -64,13 +62,12 @@ describe("deployment readiness audit", () => {
     expect(example).toContain("APP_BILLING_MODE=production");
     expect(example).toContain("Required in production");
     expect(example).not.toContain('Billing mode override: "managed"');
-    expect(example).not.toContain("Optional Redis URL");
+    expect(example).toContain("Optional Redis URL");
   });
 
   it("keeps deployment docs aligned with migration-safe production startup", () => {
     const deployment = read("docs/19-deployment.md");
     for (const key of [
-      "REDIS_URL",
       "CRON_SECRET",
       "FYND_WEBHOOK_SECRET",
       "APP_BILLING_MODE",
@@ -92,7 +89,6 @@ describe("deployment readiness audit", () => {
     const manifest = read("deploy/kubernetes/returnpromax.yaml");
     const requiredSecretKeys = [
       "DATABASE_URL",
-      "REDIS_URL",
       "SHOPIFY_API_KEY",
       "SHOPIFY_API_SECRET",
       "SHOPIFY_APP_URL",

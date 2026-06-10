@@ -6,8 +6,11 @@
  *     script to INCR + EXPIRE in a single round-trip. Cluster-correct —
  *     all replicas see the same counter, so per-IP / per-principal limits
  *     enforce strictly across the fleet.
- *   - **In-memory** (default fallback): per-replica `Map`. Used when Redis
- *     is unset or unreachable. Effective per-IP limit becomes
+ *   - **Postgres** (preferred when Redis is unset): uses a single atomic
+ *     upsert in the existing database. Cluster-correct without a separate
+ *     Redis service.
+ *   - **In-memory** (last-resort fallback): per-replica `Map`. Used when both
+ *     shared backends are unavailable. Effective per-IP limit becomes
  *     maxRequests × replica count, but every replica still throttles
  *     individually — defence-in-depth, not a single point of failure.
  *
@@ -15,9 +18,10 @@
  * second, DB-backed lockout (`api.portal.lookup.ts` — `totalRecentFailures`
  * query) that IS cluster-correct regardless of which backend is active.
  *
- * Failure mode: if Redis is configured but throws on a request, the
- * limiter falls back to in-memory for THAT request only (logged once),
- * never blocks the user with a 5xx for an infrastructure issue.
+ * Failure mode: if Redis is configured but throws on a request, the limiter
+ * falls back to Postgres. If Postgres also throws, it falls back to in-memory
+ * for THAT request only (logged once), never blocking the user with a 5xx for
+ * an infrastructure issue.
  */
 
 import { recordRateLimitCheck } from "./observability/security.server";
@@ -26,7 +30,9 @@ import { getRedis } from "./redis.server";
 import { securityLogger } from "./observability/logger.server";
 
 const DEFAULT_WINDOW_MS = 60_000;
+const DATABASE_CLEANUP_INTERVAL_MS = 5 * 60_000;
 const memStore = new Map<string, { count: number; resetAt: number }>();
+let lastDatabaseCleanupAt = 0;
 
 // Periodic cleanup to prevent memory leaks.
 setInterval(() => {
@@ -43,11 +49,12 @@ rateLimiterKeysActive.addCallback((obs) => {
 if (
   process.env.NODE_ENV === "production" &&
   Number(process.env.WEB_CONCURRENCY ?? "1") > 1 &&
-  !process.env.REDIS_URL
+  !process.env.REDIS_URL &&
+  !process.env.DATABASE_URL
 ) {
   securityLogger.warn(
     { webConcurrency: process.env.WEB_CONCURRENCY ?? "1" },
-    "WEB_CONCURRENCY>1 detected with no REDIS_URL. In-memory rate limiting is per-replica.",
+    "WEB_CONCURRENCY>1 detected with no REDIS_URL or DATABASE_URL. In-memory rate limiting is per-replica.",
   );
 }
 
@@ -121,6 +128,7 @@ return { count, pttl }
 `;
 
 let redisFailureLogged = false;
+let databaseFailureLogged = false;
 
 async function checkRedis(key: string, config: RateLimitConfig): Promise<RateLimitResult | null> {
   const redis = getRedis();
@@ -148,11 +156,76 @@ async function checkRedis(key: string, config: RateLimitConfig): Promise<RateLim
 
       securityLogger.warn(
         { err },
-        "Rate limiter Redis unavailable on this request; falling back to in-memory",
+        "Rate limiter Redis unavailable on this request; falling back to Postgres",
       );
     }
     return null;
   }
+}
+
+async function checkDatabase(key: string, config: RateLimitConfig): Promise<RateLimitResult | null> {
+  if (!process.env.DATABASE_URL?.trim()) return null;
+
+  const window = config.windowMs ?? DEFAULT_WINDOW_MS;
+  try {
+    const { default: prisma } = await import("../db.server");
+    const rows = await prisma.$queryRaw<Array<{ count: number | bigint; retryAfterMs: number | bigint }>>`
+      WITH updated AS (
+        INSERT INTO "RateLimitBucket" ("key", "count", "resetAt", "createdAt", "updatedAt")
+        VALUES (${key}, 1, now() + (${window} * interval '1 millisecond'), now(), now())
+        ON CONFLICT ("key") DO UPDATE SET
+          "count" = CASE
+            WHEN "RateLimitBucket"."resetAt" <= now() THEN 1
+            ELSE "RateLimitBucket"."count" + 1
+          END,
+          "resetAt" = CASE
+            WHEN "RateLimitBucket"."resetAt" <= now() THEN now() + (${window} * interval '1 millisecond')
+            ELSE "RateLimitBucket"."resetAt"
+          END,
+          "updatedAt" = now()
+        RETURNING "count", "resetAt"
+      )
+      SELECT
+        "count",
+        CEIL(GREATEST(EXTRACT(EPOCH FROM ("resetAt" - now())) * 1000, 0))::int AS "retryAfterMs"
+      FROM updated
+    `;
+
+    const count = Number(rows[0]?.count ?? 0);
+    const retryAfterMs = Number(rows[0]?.retryAfterMs ?? window);
+    maybeCleanupDatabaseBuckets(prisma);
+
+    if (count > config.maxRequests) {
+      return { allowed: false, remaining: 0, retryAfterMs };
+    }
+    return {
+      allowed: true,
+      remaining: Math.max(0, config.maxRequests - count),
+      retryAfterMs: 0,
+    };
+  } catch (err) {
+    redisFailureCounter.add(1, { operation: "rate_limit_database" });
+    if (!databaseFailureLogged) {
+      databaseFailureLogged = true;
+      securityLogger.warn(
+        { err },
+        "Rate limiter shared backend unavailable on this request; falling back to in-memory",
+      );
+    }
+    return null;
+  }
+}
+
+function maybeCleanupDatabaseBuckets(prisma: Awaited<typeof import("../db.server")>["default"]): void {
+  const now = Date.now();
+  if (now - lastDatabaseCleanupAt < DATABASE_CLEANUP_INTERVAL_MS) return;
+  lastDatabaseCleanupAt = now;
+
+  void prisma
+    .$executeRaw`DELETE FROM "RateLimitBucket" WHERE "resetAt" < now() - interval '5 minutes'`
+    .catch((err) => {
+      securityLogger.warn({ err }, "Rate limiter database cleanup failed");
+    });
 }
 
 function checkMemory(key: string, config: RateLimitConfig): RateLimitResult {
@@ -185,7 +258,8 @@ export async function checkRateLimit(
   const key = getClientKey(request, endpoint, principal);
 
   const fromRedis = await checkRedis(key, config);
-  const result = fromRedis ?? checkMemory(key, config);
+  const fromDatabase = fromRedis ?? (await checkDatabase(key, config));
+  const result = fromDatabase ?? checkMemory(key, config);
 
   recordRateLimitCheck(request, endpoint, result.allowed, result.remaining);
   return result;
@@ -207,4 +281,5 @@ export function rateLimitResponse(retryAfterMs: number): Response {
 export function __resetRateLimitForTests(): void {
   memStore.clear();
   redisFailureLogged = false;
+  databaseFailureLogged = false;
 }

@@ -12,7 +12,6 @@ including when `NODE_ENV` is unset; it skips only for explicit
 
 Required:
 - `DATABASE_URL`
-- `REDIS_URL`
 - `SHOPIFY_API_KEY`
 - `SHOPIFY_API_SECRET`
 - `SHOPIFY_APP_URL`
@@ -55,7 +54,8 @@ Use `deploy/kubernetes/returnpromax.yaml` as the baseline:
 - Liveness probe: `/api/healthz`.
 - Readiness probe: `/api/readyz`.
 - Rolling update uses `maxUnavailable: 0` and `maxSurge: 1`.
-- `REDIS_URL` is required so rate limiting is fleet-wide under horizontal scale.
+- Rate limiting must use a shared backend under horizontal scale. By default it
+  uses Postgres via `DATABASE_URL`; `REDIS_URL` is optional.
 
 The public ingress host must be the same stable HTTPS origin configured in:
 - `SHOPIFY_APP_URL`
@@ -82,8 +82,9 @@ network check:
 npm run preflight:production -- --check-network
 ```
 
-The network check verifies TCP reachability for `DATABASE_URL` and `REDIS_URL`
-and calls `{SHOPIFY_APP_URL}/api/healthz` plus `{SHOPIFY_APP_URL}/api/readyz`.
+The network check verifies TCP reachability for `DATABASE_URL`, verifies
+`REDIS_URL` only when it is configured, and calls `{SHOPIFY_APP_URL}/api/healthz`
+plus `{SHOPIFY_APP_URL}/api/readyz`.
 If your CI runner cannot reach private Railway/Kubernetes services, run the
 network check from a trusted bastion, release job, or one-off production shell.
 
@@ -133,8 +134,9 @@ Wire these OpenTelemetry metrics to your alert backend:
 - `portal.otp.count`: alert on send/verify spikes, `account_locked`, and high
   `invalid_code` rates.
 - `http.server.request.count`: alert on 4xx/5xx rate changes by route.
-- `redis.health.status` and `redis.failure.total`: alert on Redis unavailable or
-  rate limiter eval failures.
+- `redis.health.status` and `redis.failure.total`: alert on Redis failures when
+  Redis is configured.
+- Rate-limit database query failures: alert on repeated fallback-to-memory logs.
 - `health_check.duration` with `dependency=database`: alert on DB failures and
   latency spikes.
 - `cron.job.count`: alert when cron jobs return `error`, `partial_error`, or stop

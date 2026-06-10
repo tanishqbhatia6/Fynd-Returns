@@ -15,7 +15,6 @@ const failures = [];
 
 const requiredRuntimeKeys = [
   "DATABASE_URL",
-  "REDIS_URL",
   "SHOPIFY_API_KEY",
   "SHOPIFY_API_SECRET",
   "SHOPIFY_APP_URL",
@@ -226,8 +225,10 @@ async function runNetworkChecks() {
   const dbError = await connectTcp(process.env.DATABASE_URL ?? "", "DATABASE_URL", 5432);
   if (dbError) fail(dbError);
 
-  const redisError = await connectTcp(process.env.REDIS_URL ?? "", "REDIS_URL", 6379);
-  if (redisError) fail(redisError);
+  if (process.env.REDIS_URL?.trim()) {
+    const redisError = await connectTcp(process.env.REDIS_URL, "REDIS_URL", 6379);
+    if (redisError) fail(redisError);
+  }
 
   const appUrl = process.env.SHOPIFY_APP_URL;
   if (appUrl) {

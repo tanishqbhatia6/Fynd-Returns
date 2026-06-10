@@ -461,7 +461,7 @@ Use this checklist before deploying to production:
 - [ ] `ENCRYPTION_KEY` is set and exactly 64 hex characters
 - [ ] `SHOPIFY_API_SECRET` is set and matches the Shopify Partners dashboard
 - [ ] `DATABASE_URL` uses SSL (`?sslmode=require` or equivalent)
-- [ ] `REDIS_URL` is set in production so rate limits are shared across pods
+- [ ] Rate limits use a shared backend in production. Postgres is the default; `REDIS_URL` is optional.
 - [ ] `SCOPES` is set to the least-privilege Shopify OAuth scopes required by the app
 - [ ] `APP_BILLING_MODE` is `production` or `prod` so billing cannot fail open
 - [ ] `APP_MANAGED_PRICING_HANDLE` is set for Shopify Managed Pricing
@@ -481,7 +481,7 @@ Use this checklist before deploying to production:
 ### Rate Limiting
 
 - [ ] Rate limiting is active on all portal and external API endpoints
-- [ ] Redis-backed rate limiting is enabled for all production deployments
+- [ ] Postgres-backed or Redis-backed rate limiting is enabled for all production deployments
 - [ ] OTP endpoints are tightly limited (5 requests per 5 minutes)
 
 ### Data Protection

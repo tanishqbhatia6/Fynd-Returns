@@ -48,6 +48,7 @@ vi.mock("../../lib/billing.server", () => ({
   getManagedPricingUpgradeUrl: vi.fn(() => "https://example.test/upgrade"),
   getBillingMode: vi.fn(() => "prod"),
   isSuperAdmin: vi.fn(() => false),
+  selectFreeBillingPlan: vi.fn(),
 }));
 vi.mock("@shopify/shopify-app-react-router/server", () => ({
   boundary: { error: vi.fn(() => null), headers: vi.fn(() => ({})) },
@@ -161,6 +162,7 @@ const UPGRADE_URL = "https://test-shop.myshopify.com/admin/charges/test/pricing_
 type Reason =
   | "dev_mode"
   | "override_free"
+  | "free_plan_selected"
   | "subscription_active"
   | "subscription_missing"
   | "override_paid_no_sub";
@@ -252,7 +254,7 @@ describe("billing.tsx — ReasonLabel default arm (line 220)", () => {
       expect(container.textContent).toMatch(/Subscription required/);
     });
     const chooseLink = Array.from(container.querySelectorAll("a")).find((a) =>
-      a.textContent?.trim().startsWith("Choose a plan"),
+      a.textContent?.trim().startsWith("Choose a paid plan"),
     );
     expect(chooseLink).toBeTruthy();
     expect(chooseLink?.getAttribute("href")).toBe(UPGRADE_URL);

@@ -6,11 +6,9 @@
  * the dev/prod mode flag, superadmin detection, and the session-email
  * extraction shape (online-access info → null fallback).
  *
- * Note: app.billing.tsx exports only a `loader`. The "initiate plan
- * change" path is not a remix `action` — the page renders an `<a href>`
- * pointing at `getManagedPricingUpgradeUrl(...)`, which Shopify-managed
- * pricing redirects from. We assert the loader hands that URL through
- * unchanged so the rendered link is correct.
+ * Paid plan changes render an `<a href>` pointing at
+ * `getManagedPricingUpgradeUrl(...)`, which Shopify-managed pricing
+ * redirects from. Free plan selection posts to the route action.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -20,12 +18,14 @@ const {
   getManagedPricingUpgradeUrlMock,
   getBillingModeMock,
   isSuperAdminMock,
+  selectFreeBillingPlanMock,
 } = vi.hoisted(() => ({
   authenticateMock: vi.fn(),
   getBillingStatusMock: vi.fn(),
   getManagedPricingUpgradeUrlMock: vi.fn(),
   getBillingModeMock: vi.fn(),
   isSuperAdminMock: vi.fn(),
+  selectFreeBillingPlanMock: vi.fn(),
 }));
 
 vi.mock("../../shopify.server", () => ({
@@ -36,9 +36,10 @@ vi.mock("../../lib/billing.server", () => ({
   getManagedPricingUpgradeUrl: getManagedPricingUpgradeUrlMock,
   getBillingMode: getBillingModeMock,
   isSuperAdmin: isSuperAdminMock,
+  selectFreeBillingPlan: selectFreeBillingPlanMock,
 }));
 
-import { loader } from "../app.billing";
+import { action, loader } from "../app.billing";
 
 function mkReq(path = "/app/billing") {
   return new Request(`https://app.example${path}`);
@@ -59,6 +60,7 @@ beforeEach(() => {
     .mockReturnValue("https://admin.shopify.com/store/store/charges/fynd-returns/pricing_plans");
   getBillingModeMock.mockReset().mockReturnValue("prod");
   isSuperAdminMock.mockReset().mockReturnValue(false);
+  selectFreeBillingPlanMock.mockReset().mockResolvedValue(undefined);
 });
 
 describe("app.billing loader", () => {
@@ -185,5 +187,35 @@ describe("app.billing loader", () => {
     await expect(loader({ request: mkReq(), params: {}, context: {} } as never)).rejects.toThrow(
       "graphql failure",
     );
+  });
+});
+
+describe("app.billing action", () => {
+  it("records merchant free-plan selection and redirects to /app", async () => {
+    const fd = new FormData();
+    fd.set("intent", "select-free-plan");
+    const req = new Request("https://app.example/app/billing", {
+      method: "POST",
+      body: fd,
+    });
+
+    await expect(action({ request: req, params: {}, context: {} } as never)).rejects.toMatchObject({
+      status: 302,
+    });
+    expect(selectFreeBillingPlanMock).toHaveBeenCalledWith("store.myshopify.com");
+  });
+
+  it("rejects unsupported billing actions", async () => {
+    const fd = new FormData();
+    fd.set("intent", "unknown");
+    const req = new Request("https://app.example/app/billing", {
+      method: "POST",
+      body: fd,
+    });
+
+    await expect(action({ request: req, params: {}, context: {} } as never)).resolves.toEqual({
+      error: "Unsupported billing action",
+    });
+    expect(selectFreeBillingPlanMock).not.toHaveBeenCalled();
   });
 });

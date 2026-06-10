@@ -1,5 +1,5 @@
-import type { LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData } from "react-router";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import { Form, Link, redirect, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import { AppPage } from "../components/AppPage";
 import {
@@ -7,6 +7,7 @@ import {
   getManagedPricingUpgradeUrl,
   getBillingMode,
   isSuperAdmin,
+  selectFreeBillingPlan,
 } from "../lib/billing.server";
 
 /**
@@ -42,6 +43,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     isSuperadmin: isSuperAdmin(sessionEmail),
     sessionEmail,
   };
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const fd = await request.formData();
+  const intent = String(fd.get("intent") ?? "");
+
+  if (intent !== "select-free-plan") {
+    return { error: "Unsupported billing action" };
+  }
+
+  await selectFreeBillingPlan(session.shop);
+  throw redirect("/app");
 };
 
 export default function BillingPage() {
@@ -161,45 +175,70 @@ export default function BillingPage() {
           {!status.hasAccess && (
             <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #F1F5F9" }}>
               <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.6, margin: "0 0 16px" }}>
-                Fynd Returns uses Shopify Managed Pricing. Click the button below to open the plan
-                picker — Shopify handles the payment form, no credit card is entered into this app.
+                Start on the Free plan, or open Shopify Managed Pricing to choose a paid plan.
+                Shopify handles paid-plan approval; no credit card is entered into this app.
               </p>
-              <a
-                href={upgradeUrl}
-                target="_top"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "12px 24px",
-                  background: "linear-gradient(135deg, #4F46E5, #6366F1)",
-                  color: "#fff",
-                  fontSize: 15,
-                  fontWeight: 700,
-                  borderRadius: 10,
-                  textDecoration: "none",
-                  boxShadow: "0 2px 8px #6366F140",
-                  letterSpacing: "-0.01em",
-                }}
-              >
-                Choose a plan
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                <Form method="post">
+                  <input type="hidden" name="intent" value="select-free-plan" />
+                  <button
+                    type="submit"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "12px 22px",
+                      background: "#FFFFFF",
+                      color: "#0F172A",
+                      fontSize: 15,
+                      fontWeight: 700,
+                      borderRadius: 10,
+                      border: "1px solid #CBD5E1",
+                      cursor: "pointer",
+                      boxShadow: "0 1px 2px rgba(15,23,42,0.06)",
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    Continue with Free
+                  </button>
+                </Form>
+                <a
+                  href={upgradeUrl}
+                  target="_top"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "12px 24px",
+                    background: "linear-gradient(135deg, #4F46E5, #6366F1)",
+                    color: "#fff",
+                    fontSize: 15,
+                    fontWeight: 700,
+                    borderRadius: 10,
+                    textDecoration: "none",
+                    boxShadow: "0 2px 8px #6366F140",
+                    letterSpacing: "-0.01em",
+                  }}
                 >
-                  <path d="M7 17L17 7" />
-                  <polyline points="7 7 17 7 17 17" />
-                </svg>
-              </a>
+                  Choose a paid plan
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M7 17L17 7" />
+                    <polyline points="7 7 17 7 17 17" />
+                  </svg>
+                </a>
+              </div>
               <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 12, lineHeight: 1.5 }}>
-                After selecting a plan and approving the charge in Shopify, you'll be returned here
-                automatically.
+                Free starts immediately. Paid plans are approved in Shopify, then you'll be returned
+                here automatically.
               </p>
             </div>
           )}
@@ -307,6 +346,8 @@ function ReasonLabel({
       return <>Development build — billing is not enforced on this environment.</>;
     case "override_free":
       return <>Free access granted by a superadmin for this shop.</>;
+    case "free_plan_selected":
+      return <>Free plan selected for this shop.</>;
     case "subscription_active":
       return subscriptionName ? (
         <>
@@ -332,6 +373,7 @@ function ReasonLabel({
 function mapReasonNever():
   | "dev_mode"
   | "override_free"
+  | "free_plan_selected"
   | "subscription_active"
   | "subscription_missing"
   | "override_paid_no_sub" {

@@ -28,6 +28,7 @@ vi.mock("../lib/billing.server", () => ({
   getManagedPricingUpgradeUrl: vi.fn(() => "https://example.test/upgrade"),
   getBillingMode: vi.fn(() => "prod"),
   isSuperAdmin: vi.fn(() => false),
+  selectFreeBillingPlan: vi.fn(),
 }));
 vi.mock("@shopify/shopify-app-react-router/server", () => ({
   boundary: {
@@ -57,6 +58,7 @@ const UPGRADE_URL = "https://test-shop.myshopify.com/admin/charges/test/pricing_
 type Reason =
   | "dev_mode"
   | "override_free"
+  | "free_plan_selected"
   | "subscription_active"
   | "subscription_missing"
   | "override_paid_no_sub";
@@ -188,7 +190,7 @@ describe("BillingPage — hasAccess=true branch (subscription_active)", () => {
 });
 
 describe("BillingPage — hasAccess=false branch", () => {
-  it("renders 'Subscription required' and the Choose-a-plan CTA when hasAccess=false", async () => {
+  it("renders 'Subscription required' and Free/Paid plan CTAs when hasAccess=false", async () => {
     const { container, findByText } = renderWithRouter(BillingPage, {
       initialEntries: ["/app/billing"],
       loaderData: withData({
@@ -200,8 +202,9 @@ describe("BillingPage — hasAccess=false branch", () => {
       }),
     });
     expect(await findByText("Subscription required")).toBeTruthy();
+    expect(container.textContent).toContain("Continue with Free");
     const chooseLink = Array.from(container.querySelectorAll("a")).find((a) =>
-      a.textContent?.trim().startsWith("Choose a plan"),
+      a.textContent?.trim().startsWith("Choose a paid plan"),
     );
     expect(chooseLink).toBeTruthy();
     expect(chooseLink?.getAttribute("href")).toBe(UPGRADE_URL);
@@ -222,10 +225,8 @@ describe("BillingPage — hasAccess=false branch", () => {
     await waitFor(() => {
       expect(container.textContent).toMatch(/Subscription required/);
     });
-    expect(container.textContent).toMatch(/Shopify Managed Pricing/);
-    expect(container.textContent).toMatch(
-      /After selecting a plan and approving the charge in Shopify/,
-    );
+    expect(container.textContent).toMatch(/Start on the Free plan/);
+    expect(container.textContent).toMatch(/Paid plans are approved in Shopify/);
   });
 });
 
@@ -297,6 +298,23 @@ describe("BillingPage — ReasonLabel switch arms", () => {
       expect(container.textContent).toMatch(/Access granted/);
     });
     expect(container.textContent).toMatch(/Free access granted by a superadmin for this shop\./);
+  });
+
+  it("reason='free_plan_selected' renders the merchant-selected free-plan copy", async () => {
+    const { container } = renderWithRouter(BillingPage, {
+      initialEntries: ["/app/billing"],
+      loaderData: withData({
+        status: {
+          hasAccess: true,
+          reason: "free_plan_selected",
+          subscriptionName: "Free",
+        },
+      }),
+    });
+    await waitFor(() => {
+      expect(container.textContent).toMatch(/Access granted/);
+    });
+    expect(container.textContent).toMatch(/Free plan selected for this shop\./);
   });
 
   it("reason='subscription_missing' renders the no-subscription copy", async () => {

@@ -9,7 +9,7 @@
  *        "dev"  → billing bypassed entirely. Every shop gets full
  *                 access regardless of subscription state. Used by
  *                 UAT + local dev.
- *        "prod" → subscription enforced unless layer 2 or 3 says
+ *        "prod" → subscription enforced unless layer 2, 3, or 4 says
  *                 otherwise. Used by the production deployment.
  *        (unset) → defaults to "dev" — fail-open for safety during
  *                 first boot so nobody gets locked out.
@@ -21,7 +21,11 @@
  *                 (Useful for dogfooding a paid flow on a dev build.)
  *        null    → fall through to layer 3.
  *
- *   3. Live subscription check
+ *   3. Merchant free plan selection
+ *        "free" → merchant selected the app's free tier from /app/billing.
+ *                 Grants access without a Shopify charge.
+ *
+ *   4. Live subscription check
  *        Calls Shopify's currentAppInstallation.activeSubscriptions
  *        GraphQL query. Cached snapshot stored on ShopSettings so we
  *        don't hit Shopify on every request. Refreshed on the
@@ -53,6 +57,7 @@ export type BillingStatus = {
   reason:
     | "dev_mode" // APP_BILLING_MODE=dev, billing bypassed
     | "override_free" // per-shop override forces free
+    | "free_plan_selected" // merchant selected the first-party free plan
     | "subscription_active" // Shopify reports an active, non-test subscription
     | "subscription_missing" // no active subscription — access denied
     | "override_paid_no_sub"; // override says paid but no subscription — access denied
@@ -206,6 +211,7 @@ export async function getBillingStatus(
     include: { settings: true },
   });
   const override = (shop.settings?.billingPlanOverride as BillingPlanOverride) ?? null;
+  const selectedPlan = shop.settings?.billingPlanSelection ?? null;
 
   // ── Layer 1: env mode ───────────────────────────────────────────
   // dev mode is the easy path: everyone gets in, we don't bother
@@ -234,7 +240,19 @@ export async function getBillingStatus(
     };
   }
 
-  // ── Layer 3: live subscription check ────────────────────────────
+  // ── Layer 3: merchant-selected free plan ────────────────────────
+  if (selectedPlan === "free" && override !== "paid") {
+    return {
+      hasAccess: true,
+      reason: "free_plan_selected",
+      mode,
+      override,
+      subscriptionName: "Free",
+      subscriptionCheckedAt: shop.settings?.billingPlanSelectionAt ?? null,
+    };
+  }
+
+  // ── Layer 4: live subscription check ────────────────────────────
   // Use cached snapshot if recent enough + we don't have a live admin
   // client (e.g. webhook context).
   const cached = shop.settings;
@@ -345,6 +363,33 @@ export async function setBillingPlanOverride(
       billingPlanOverrideReason: reason || null,
       billingPlanOverrideBy: adminEmail,
       billingPlanOverrideAt: new Date(),
+    },
+  });
+}
+
+/**
+ * Merchant-facing free tier selection. This is intentionally separate
+ * from the superadmin override so audit/UX can distinguish "merchant
+ * chose Free" from "internal user granted free access".
+ */
+export async function selectFreeBillingPlan(shopDomain: string): Promise<void> {
+  const shop = await prisma.shop.upsert({
+    where: { shopDomain },
+    create: {
+      shopDomain,
+      settings: { create: {} },
+    },
+    update: {},
+    include: { settings: true },
+  });
+
+  if (!shop.settings) return;
+
+  await prisma.shopSettings.update({
+    where: { id: shop.settings.id },
+    data: {
+      billingPlanSelection: "free",
+      billingPlanSelectionAt: new Date(),
     },
   });
 }

@@ -206,6 +206,8 @@ function mockShopUpsert(
     subscriptionStatus: "active" | "inactive" | null;
     subscriptionName: string | null;
     subscriptionCheckedAt: Date | null;
+    billingPlanSelection: "free" | null;
+    billingPlanSelectionAt: Date | null;
   }> = {},
 ) {
   prismaMock.shop.upsert.mockResolvedValue({
@@ -217,6 +219,8 @@ function mockShopUpsert(
       subscriptionStatus: extra.subscriptionStatus ?? null,
       subscriptionName: extra.subscriptionName ?? null,
       subscriptionCheckedAt: extra.subscriptionCheckedAt ?? null,
+      billingPlanSelection: extra.billingPlanSelection ?? null,
+      billingPlanSelectionAt: extra.billingPlanSelectionAt ?? null,
     },
   });
 }
@@ -270,6 +274,29 @@ describe("getBillingStatus", () => {
   describe("Layer 3 — live subscription check", () => {
     beforeEach(() => {
       process.env.APP_BILLING_MODE = "prod";
+    });
+
+    it("merchant-selected free plan grants access in prod mode", async () => {
+      const selectedAt = new Date(Date.now() - 60_000);
+      mockShopUpsert(null, {
+        billingPlanSelection: "free",
+        billingPlanSelectionAt: selectedAt,
+      });
+      const status = await getBillingStatus("my-shop.myshopify.com", null);
+      expect(status.hasAccess).toBe(true);
+      expect(status.reason).toBe("free_plan_selected");
+      expect(status.subscriptionName).toBe("Free");
+      expect(status.subscriptionCheckedAt).toBe(selectedAt);
+    });
+
+    it("paid override still requires a Shopify subscription even if free was selected", async () => {
+      mockShopUpsert("paid", { billingPlanSelection: "free" });
+      const admin = makeAdmin({
+        data: { currentAppInstallation: { activeSubscriptions: [] } },
+      });
+      const status = await getBillingStatus("my-shop.myshopify.com", admin);
+      expect(status.hasAccess).toBe(false);
+      expect(status.reason).toBe("override_paid_no_sub");
     });
 
     it("active subscription → access granted", async () => {

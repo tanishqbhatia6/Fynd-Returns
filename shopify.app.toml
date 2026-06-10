@@ -1,7 +1,7 @@
 # Fynd Returns — Returns management for Shopify
 name = "Fynd Returns"
-client_id = "2cfa0f8846589d9e5c39500758697b1a"
-application_url = "https://returnpromax-web-production.up.railway.app"
+client_id = "1d23d95fee9d678ba4de14108283414e"
+application_url = "https://fynd-returns-b9ef13cc.serverless.boltic.app"
 embedded = true
 
 [access_scopes]
@@ -13,8 +13,8 @@ scopes = "read_orders,write_orders,read_products,read_customers,read_fulfillment
 
 [auth]
 redirect_urls = [
-  "https://returnpromax-web-production.up.railway.app/auth/callback",
-  "https://returnpromax-web-production.up.railway.app/auth/shopify/callback"
+  "https://fynd-returns-b9ef13cc.serverless.boltic.app/auth/callback",
+  "https://fynd-returns-b9ef13cc.serverless.boltic.app/auth/shopify/callback"
 ]
 
 [webhooks]
@@ -62,7 +62,7 @@ uri = "/webhooks/app-subscriptions/update"
 topics = ["app_subscriptions/update"]
 
 [app_proxy]
-url = "https://returnpromax-web-production.up.railway.app/apps/returns"
+url = "https://fynd-returns-b9ef13cc.serverless.boltic.app/apps/returns"
 subpath = "returns"
 prefix = "apps"
 

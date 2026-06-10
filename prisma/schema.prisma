@@ -228,6 +228,12 @@ model ShopSettings {
   billingPlanOverrideBy        String?  // email of superadmin who set it
   billingPlanOverrideAt        DateTime?
 
+  // Merchant-selected in-app plan for non-chargeable tiers. This is separate
+  // from the superadmin override above; merchants can select "free" themselves
+  // from /app/billing without requiring a Shopify subscription charge.
+  billingPlanSelection         String?  // "free" | null
+  billingPlanSelectionAt       DateTime?
+
   // Cached snapshot of the shop's Shopify Managed Pricing subscription.
   // Refreshed on every gate check + on app_subscriptions/update webhook.
   // `active` means Shopify reports the shop has a current subscription

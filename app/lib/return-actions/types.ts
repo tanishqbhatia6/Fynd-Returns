@@ -57,7 +57,7 @@ export type ReturnHandlerContext = {
   returnCase: ReturnCaseWithItems;
   /** Shop record with settings. */
   shop: ShopWithSettings;
-  /** Authenticated Shopify admin (with REST credentials attached). */
+  /** Authenticated Shopify admin, optionally with raw-fetch credentials attached. */
   admin: AdminApiContext;
   /** Authenticated session shop domain. */
   shopDomain: string;

@@ -139,6 +139,7 @@ vi.mock("../../lib/observability/tracing.server", () => ({
 }));
 vi.mock("../../lib/observability/logger.server", () => ({
   refundLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  portalLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 vi.mock("../../lib/observability/metrics.server", () => ({
   returnActionCounter: { add: vi.fn() },

@@ -21,7 +21,7 @@ export function enrichFyndError(msg: string): string {
   const hasGuidance =
     /company\/orders|scopes|Fynd Partners|Settings.*Integrations|Test Platform/i.test(msg);
   if (is403 && !hasGuidance) {
-    return `${msg} — Sync uses the same OAuth flow as Test Platform. If Test Platform passes in Settings → Integrations but sync still fails, the write endpoint may require additional permissions—contact Fynd support.`;
+    return `${msg} — Sync uses the same OAuth flow as Test Platform. If Test Platform passes in Settings → Integrations but sync still fails, the write endpoint may require additional permissions; contact Fynd support.`;
   }
   return msg;
 }
@@ -45,15 +45,15 @@ export function enrichRefundError(
 ): string {
   if (!msg) return msg;
   if (/no transactions|transactions cannot be empty/i.test(msg) && ctx.method === "original")
-    return `${msg} — This may be a COD or gift-card order. Try "Store credit" or "Discount code" refund method instead.`;
+    return `${msg} — This may be a COD or gift-card order. Try Store credit when the customer is eligible, or process it manually in Shopify Admin.`;
   if (/customer.*not found|store.*credit.*no.*customer|store_credit.*customer/i.test(msg))
-    return `${msg} — Store credit requires the customer to have a Shopify account. Use "Discount code" method instead.`;
+    return `${msg} — Store credit requires a Shopify account. Ask the merchant to link/create the customer account or handle this case manually in Shopify Admin.`;
   if (/already.*been.*refunded|already refunded/i.test(msg))
     return `${msg} — Check Shopify Admin for order ${ctx.orderName ?? ""} to verify refund status.`;
   if (/location|restock/i.test(msg))
     return `${msg} — Try a different restock location, or disable restocking in Settings → Return Settings.`;
   if (/gift.*card|store_credit.*amount/i.test(msg))
-    return `${msg} — Use "Discount code" refund method for gift card or store credit orders.`;
+    return `${msg} — Gift-card or store-credit-paid orders may not expose a refundable transaction amount. Review the order in Shopify Admin before issuing credit.`;
   return msg;
 }
 

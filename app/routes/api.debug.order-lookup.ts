@@ -73,16 +73,31 @@ async function testGraphQLSearch(
   };
 }
 
-/** Run a REST API order lookup by name */
-async function testRestLookup(
+/** Run a raw Admin GraphQL order lookup by exact name */
+async function testRawGraphQLLookup(
   shopDomain: string,
   accessToken: string,
-  nameQuery: string,
-): Promise<{ orders: Array<{ id: number; name: string }>; error?: string; statusCode?: number }> {
+  query: string,
+): Promise<{ orders: Array<{ id: string; name: string }>; error?: string; statusCode?: number }> {
   const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
-  const url = `https://${shop}/admin/api/${API_VERSION}/orders.json?status=any&name=${encodeURIComponent(nameQuery)}&fields=id,name&limit=5`;
+  const gql = `#graphql
+    query RawOrderLookup($query: String!) {
+      orders(first: 10, query: $query, sortKey: CREATED_AT, reverse: true) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+  `;
+  const url = `https://${shop}/admin/api/${API_VERSION}/graphql.json`;
   const res = await shopifyFetch(url, {
-    headers: { "X-Shopify-Access-Token": accessToken },
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Access-Token": accessToken,
+    },
+    body: JSON.stringify({ query: gql, variables: { query } }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -92,9 +107,30 @@ async function testRestLookup(
       statusCode: res.status,
     };
   }
-  const data = (await res.json()) as { orders?: Array<{ id?: number; name?: string }> };
+  const data = (await res.json()) as {
+    data?: { orders?: { nodes?: Array<{ id?: string; name?: string }> } };
+    orders?: Array<{ id?: number | string; name?: string }>;
+    errors?: Array<{ message?: string }>;
+  };
+  if (data.errors?.length) {
+    return {
+      orders: [],
+      error: data.errors.map((e) => e.message).join("; "),
+      statusCode: res.status,
+    };
+  }
   return {
-    orders: (data?.orders ?? []).map((o) => ({ id: o.id ?? 0, name: o.name ?? "" })),
+    orders: (data.data?.orders?.nodes ?? data.orders ?? []).map((o) => {
+      const rawId = o.id == null || o.id === 0 ? "" : String(o.id);
+      return {
+        id: rawId && rawId.startsWith("gid://shopify/Order/")
+          ? rawId
+          : rawId
+            ? `gid://shopify/Order/${rawId}`
+            : "",
+        name: o.name ?? "",
+      };
+    }),
     statusCode: res.status,
   };
 }
@@ -165,25 +201,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
-  // ─── Strategy 2: REST API exact name match ───
+  // ─── Strategy 2: raw Admin GraphQL exact-name search ───
   const accessToken = session.accessToken ?? "";
-  for (const nameQuery of [`#${clean}`, clean]) {
+  for (const nameQuery of [`name:#${clean}`, `name:${clean}`]) {
     const start = Date.now();
     try {
-      const res = await testRestLookup(session.shop, accessToken, nameQuery);
+      const res = await testRawGraphQLLookup(session.shop, accessToken, nameQuery);
       results.push({
-        strategy: "REST API",
-        query: `GET orders.json?name=${nameQuery}`,
+        strategy: "Raw GraphQL search",
+        query: nameQuery,
         success: res.orders.length > 0,
-        orderId: res.orders[0]?.id ? `gid://shopify/Order/${res.orders[0].id}` : undefined,
+        orderId: res.orders[0]?.id || undefined,
         orderName: res.orders[0]?.name,
         error: res.error,
         durationMs: Date.now() - start,
       });
     } catch (err) {
       results.push({
-        strategy: "REST API",
-        query: `GET orders.json?name=${nameQuery}`,
+        strategy: "Raw GraphQL search",
+        query: nameQuery,
         success: false,
         error: err instanceof Error ? err.message : String(err),
         durationMs: Date.now() - start,

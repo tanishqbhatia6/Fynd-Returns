@@ -2009,14 +2009,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           });
         }
         const invalid: Array<{ productId: string; variantId: string; reason: string }> = [];
-        // Validate via REST: cheap one-product-at-a-time fetch (max 20 from upstream cap).
+        // Validate via Admin GraphQL: cheap one-product-at-a-time fetch (max 20 from upstream cap).
         for (const pair of uniquePairs.values()) {
           try {
-            const productLegacyId = pair.productId.replace(/^gid:\/\/shopify\/Product\//, "");
-            const variantLegacyId = pair.variantId.replace(
-              /^gid:\/\/shopify\/ProductVariant\//,
-              "",
-            );
+            const productId = pair.productId.startsWith("gid://shopify/Product/")
+              ? pair.productId
+              : `gid://shopify/Product/${pair.productId}`;
+            const variantLegacyId = pair.variantId.replace(/^gid:\/\/shopify\/ProductVariant\//, "");
             // 10s cap so a hung Shopify upstream doesn't pin the request worker.
             const ctrl = new AbortController();
             // defensive: 10s abort callback only fires on real network hang
@@ -2026,9 +2025,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             let res: Response;
             try {
               res = await fetch(
-                `https://${shopRecord.shopDomain}/admin/api/2024-10/products/${productLegacyId}.json?fields=id,variants`,
+                `https://${shopRecord.shopDomain}/admin/api/2026-01/graphql.json`,
                 {
-                  headers: { "X-Shopify-Access-Token": session.accessToken },
+                  method: "POST",
+                  headers: {
+                    "X-Shopify-Access-Token": session.accessToken,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    query: `#graphql
+                      query ValidateExchangeVariant($id: ID!) {
+                        product(id: $id) {
+                          variants(first: 250) {
+                            nodes {
+                              id
+                              legacyResourceId
+                            }
+                          }
+                        }
+                      }
+                    `,
+                    variables: { id: productId },
+                  }),
                   signal: ctrl.signal,
                 },
               );
@@ -2040,10 +2058,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               continue;
             }
             const data = (await res.json()) as {
-              product?: { variants?: Array<{ id: number | string }> };
+              data?: {
+                product?: {
+                  variants?: {
+                    nodes?: Array<{ id?: string; legacyResourceId?: number | string }>;
+                  };
+                } | null;
+              };
+              product?: { variants?: Array<{ id?: number | string }> };
+              errors?: Array<{ message?: string }>;
             };
-            const variants = data.product?.variants ?? [];
-            const found = variants.some((v) => String(v.id) === variantLegacyId);
+            if (data.errors?.length) {
+              invalid.push({ ...pair, reason: data.errors[0]?.message || "GraphQL error" });
+              continue;
+            }
+            const variants =
+              data.data?.product?.variants?.nodes ??
+              data.product?.variants?.map((v) => ({ id: undefined, legacyResourceId: v.id })) ??
+              [];
+            const found = variants.some(
+              (v) => v.id === pair.variantId || String(v.legacyResourceId) === variantLegacyId,
+            );
             if (!found) invalid.push({ ...pair, reason: "variant not in product" });
           } catch (err) {
             invalid.push({ ...pair, reason: err instanceof Error ? err.message : "fetch error" });

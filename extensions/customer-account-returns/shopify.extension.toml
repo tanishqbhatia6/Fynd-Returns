@@ -9,6 +9,13 @@ handle = "customer-account-returns"
 network_access = true
 api_access = true
 
+[extensions.settings]
+[[extensions.settings.fields]]
+key = "app_host"
+type = "single_line_text_field"
+name = "App host URL"
+description = "Production app URL, including https://"
+
 [[extensions.targeting]]
 target = "customer-account.order-index.block.render"
 module = "./src/Extension.tsx"

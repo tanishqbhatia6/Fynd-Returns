@@ -287,7 +287,7 @@ describe("fetchOrderByOrderNumber", () => {
     expect(order!.name).toBe("#1001");
   });
 
-  it("uses raw GraphQL fetch when REST credentials are attached (#-prefix name)", async () => {
+  it("uses raw GraphQL fetch when raw-fetch credentials are attached (#-prefix name)", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -307,7 +307,7 @@ describe("fetchOrderByOrderNumber", () => {
     expect(callUrl).toContain("graphql.json");
   });
 
-  it("falls back to REST search when raw GraphQL returns no nodes", async () => {
+  it("falls back to SDK GraphQL search when raw GraphQL returns no nodes", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       // Strategy 1 attempt 1: empty results
@@ -318,40 +318,24 @@ describe("fetchOrderByOrderNumber", () => {
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ data: { orders: { nodes: [] } } }), { status: 200 }),
       )
-      // REST lookup: found order
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ orders: [{ id: 999, name: "#X14126" }] }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
     const { admin: baseAdmin, graphql } = makeAdmin([
-      // fetchOrderByGid follow-up
-      {
-        data: {
-          orderByIdentifier: fullOrderNode({ id: "gid://shopify/Order/999", name: "#X14126" }),
-        },
-      },
+      { data: { orders: { nodes: [fullOrderNode({ name: "#X14126" })] } } },
     ]);
     const admin = withRestCredentials(baseAdmin, "shop.myshopify.com", "token-abc");
     const order = await fetchOrderByOrderNumber(admin, "X14126");
     expect(order).not.toBeNull();
-    expect(order!.id).toBe("gid://shopify/Order/999");
-    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(order!.name).toBe("#X14126");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(graphql).toHaveBeenCalledTimes(1);
   });
 
-  it("treats REST 5xx responses as a failed REST lookup and falls through", async () => {
+  it("treats raw GraphQL 5xx responses as misses and falls through", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       // raw GraphQL: 502 (treated as HTTP error -> null)
       .mockResolvedValueOnce(new Response("upstream error", { status: 502 }))
       // raw GraphQL retry: 502
-      .mockResolvedValueOnce(new Response("upstream error", { status: 502 }))
-      // REST attempt with #-prefix: 503
-      .mockResolvedValueOnce(new Response("backend down", { status: 503 }))
-      // REST attempt without #: 503
-      .mockResolvedValueOnce(new Response("backend down", { status: 503 }));
+      .mockResolvedValueOnce(new Response("upstream error", { status: 502 }));
     const { admin: baseAdmin } = makeAdmin([
       // SDK fallback Strategy 2: name:#X — empty
       { data: { orders: { nodes: [] } } },
@@ -363,10 +347,10 @@ describe("fetchOrderByOrderNumber", () => {
     const admin = withRestCredentials(baseAdmin, "shop.myshopify.com", "token-abc");
     const order = await fetchOrderByOrderNumber(admin, "X9999");
     expect(order).toBeNull();
-    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("uses SDK fallback (Strategy 2) when no REST credentials are present", async () => {
+  it("uses SDK fallback (Strategy 2) when no raw-fetch credentials are present", async () => {
     const { admin } = makeAdmin([
       // name:#1001 search hit
       { data: { orders: { nodes: [fullOrderNode({ name: "#1001" })] } } },

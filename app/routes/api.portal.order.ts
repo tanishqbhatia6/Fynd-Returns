@@ -62,6 +62,31 @@ const FYND_RETURN_JOURNEY_STATUS_RE =
 const ORDER_OTP_TTL_MS = 10 * 60 * 1000;
 const ORDER_OTP_COOLDOWN_MS = 60_000;
 const ORDER_OTP_BCRYPT_COST = 10;
+const ORDER_OTP_EMAIL_FAILED_MESSAGE =
+  "Could not send the verification email. Ask the store to check email settings and try again.";
+
+async function resetFailedOrderOtpSend(sessionId: string, attemptsCount: number) {
+  await prisma.lookupSession
+    .update({
+      where: { id: sessionId },
+      data: {
+        otpTarget: null,
+        otpSentAt: null,
+        attemptsCount,
+      },
+    })
+    .catch(() => {});
+}
+
+function orderOtpEmailFailureResponse(): Response {
+  return Response.json(
+    {
+      error: ORDER_OTP_EMAIL_FAILED_MESSAGE,
+      emailVerificationUnavailable: true,
+    },
+    { status: 503 },
+  );
+}
 
 function portalTokenFromRequest(request: Request, url: URL): string | null {
   const queryToken = url.searchParams.get("portalToken");
@@ -191,9 +216,23 @@ async function requireVerifiedOrderCustomer(args: {
         },
       });
   try {
-    await sendOtpEmail({ shopDomain: args.shopDomain, to: emailContact.value, otp });
+    const emailResult = await sendOtpEmail({
+      shopDomain: args.shopDomain,
+      to: emailContact.value,
+      otp,
+    });
+    if (!emailResult.success) {
+      await resetFailedOrderOtpSend(session.id, existing?.attemptsCount ?? 0);
+      portalLogger.warn(
+        { error: emailResult.error, shopDomain: args.shopDomain },
+        "Portal order OTP email send failed",
+      );
+      return orderOtpEmailFailureResponse();
+    }
   } catch (err) {
+    await resetFailedOrderOtpSend(session.id, existing?.attemptsCount ?? 0);
     portalLogger.warn({ err, shopDomain: args.shopDomain }, "Portal order OTP email send failed");
+    return orderOtpEmailFailureResponse();
   }
   return Response.json({
     requiresOtp: true,

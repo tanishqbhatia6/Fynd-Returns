@@ -5,7 +5,7 @@
  * Finds return cases where shopifyOrderId is a Fynd internal ID (not a Shopify
  * GID or numeric ID) and:
  * 1. Extracts affiliate_order_id from fyndPayloadJson (using same normalization as the app)
- * 2. Resolves the order name to a Shopify GID via REST API
+ * 2. Resolves the order name to a Shopify GID via Admin GraphQL
  * 3. Updates shopifyOrderId to the GID (fast path) and shopifyOrderName
  *
  * Idempotent — safe to run on every deploy. Exits silently when nothing to fix.
@@ -78,7 +78,7 @@ function extractAffiliateOrderId(payloadJson) {
 }
 
 /**
- * Look up a Shopify order by name via REST API.
+ * Look up a Shopify order by name via Admin GraphQL.
  * Returns { gid, name } if found, null otherwise.
  */
 async function resolveOrderByName(shopDomain, accessToken, orderName) {
@@ -86,23 +86,39 @@ async function resolveOrderByName(shopDomain, accessToken, orderName) {
   if (!clean) return null;
 
   const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
+  const gql = `#graphql
+    query ResolveOrderByName($query: String!) {
+      orders(first: 10, query: $query, sortKey: CREATED_AT, reverse: true) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+  `;
 
-  for (const nameQuery of [`#${clean}`, clean]) {
+  for (const nameQuery of [`name:#${clean}`, `name:${clean}`]) {
     try {
-      const url = `https://${shop}/admin/api/${API_VERSION}/orders.json?status=any&name=${encodeURIComponent(nameQuery)}&fields=id,name&limit=5`;
+      const url = `https://${shop}/admin/api/${API_VERSION}/graphql.json`;
       const res = await fetch(url, {
-        headers: { "X-Shopify-Access-Token": accessToken },
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": accessToken,
+        },
+        body: JSON.stringify({ query: gql, variables: { query: nameQuery } }),
       });
       if (!res.ok) continue;
       const data = await res.json();
-      const orders = data?.orders ?? [];
+      if (data?.errors?.length) continue;
+      const orders = data?.data?.orders?.nodes ?? [];
       const norm = clean.toLowerCase();
       const match = orders.find((o) => {
         const n = (o.name ?? "").replace(/^#/, "").toLowerCase();
         return n === norm;
       });
-      if (match?.id) {
-        return { gid: `gid://shopify/Order/${match.id}`, name: match.name ?? `#${clean}` };
+      if (match?.id?.startsWith("gid://shopify/Order/")) {
+        return { gid: match.id, name: match.name ?? `#${clean}` };
       }
     } catch {
       // Continue
@@ -140,7 +156,7 @@ function getOrderNameVariants(affiliateOrderId) {
 }
 
 async function main() {
-  // Get offline session for Shopify REST API calls
+  // Get offline session for direct Shopify GraphQL calls.
   const offlineSession = await prisma.session.findFirst({
     where: { isOnline: false, accessToken: { not: "" } },
     select: { shop: true, accessToken: true },
@@ -209,7 +225,7 @@ async function main() {
       continue;
     }
 
-    // Try to resolve each candidate to a Shopify GID via REST API
+    // Try to resolve each candidate to a Shopify GID via Admin GraphQL.
     let resolvedOrder = null;
     for (const candidate of candidateNames) {
       if (!candidate) continue;

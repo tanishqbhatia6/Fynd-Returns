@@ -383,15 +383,15 @@ describe("sendRefundNotification", () => {
 /* ── sendOtpEmail ─────────────────────────────────────────────────── */
 
 describe("sendOtpEmail", () => {
-  it("skips silently when SMTP missing (OTP fallback)", async () => {
+  it("returns failure when SMTP is missing", async () => {
     prismaMock.shop.findUnique.mockResolvedValue(makeShopWithoutSmtp());
     const res = await sendOtpEmail({
       shopDomain: "my-shop.myshopify.com",
       to: "cust@example.com",
       otp: "123456",
     });
-    // OTP fallback returns success to avoid leaking "no SMTP" through the UI.
-    expect(res.success).toBe(true);
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/Email verification is not configured/i);
     expect(sendMailMock).not.toHaveBeenCalled();
   });
 

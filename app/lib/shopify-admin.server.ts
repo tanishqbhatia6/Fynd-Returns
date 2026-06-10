@@ -1,6 +1,6 @@
 export type AdminGraphQL = {
   graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<Response>;
-  /** Optional REST credentials for exact name lookups (set by callers who have session info) */
+  /** Optional raw-fetch credentials for GraphQL lookups (set by callers who have session info) */
   _rest?: { shopDomain: string; accessToken: string };
 };
 
@@ -11,7 +11,7 @@ import { shopifyCircuitBreaker } from "./observability/resilience.server";
 
 const API_VERSION = "2026-01";
 
-/** Default per-request timeout for direct fetch() calls to Shopify Admin REST/GraphQL.
+/** Default per-request timeout for direct fetch() calls to Shopify Admin GraphQL.
  *  The Shopify Admin SDK applies its own timeout, but the bare `fetch()` calls in
  *  this module would otherwise hang the request worker indefinitely on upstream
  *  network failure. */
@@ -394,11 +394,6 @@ export async function fetchOrderByGid(
 }
 
 /**
- * Exact order lookup via Shopify REST API:
- *   GET /admin/api/2026-01/orders.json?status=any&name=#FYNDSHOPIFYX14122
- * (name is URL-encoded, e.g. name=%23FYNDSHOPIFYX14122)
- */
-/**
  * Search Shopify orders by query string. When `exactName` is provided,
  * fetches up to 50 candidates and returns only the one whose `name`
  * matches exactly (case-insensitive, ignoring leading #). This prevents
@@ -507,70 +502,7 @@ async function searchOrders(
  * 4. metafields.$app.fynd_order_id — lookup by stored Fynd order id
  * 5. source_identifier — lookup by external/source identifier
  */
-/**
- * Look up a Shopify order by exact name via the REST Admin API.
- * REST API's `name` parameter is an EXACT match filter (unlike GraphQL search
- * which tokenizes/parses the query string). This is the most reliable way to
- * find orders with non-standard names like #FYNDSHOPIFYX14126.
- *
- * Returns the order GID if found, or null.
- */
-async function restOrderLookupByName(
-  shopDomain: string,
-  accessToken: string,
-  orderName: string,
-): Promise<string | null> {
-  const clean = orderName.replace(/^#/, "").trim();
-  // unreachable: only caller (fetchOrderByOrderNumber) already returns null at the same guard
-  /* v8 ignore start */
-  if (!clean) return null;
-  /* v8 ignore stop */
-
-  const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
-  // Try with # prefix (standard Shopify name format) and without
-  for (const nameQuery of [`#${clean}`, clean]) {
-    try {
-      const url = `https://${shop}/admin/api/${API_VERSION}/orders.json?status=any&name=${encodeURIComponent(nameQuery)}&fields=id,name&limit=5`;
-      const res = await shopifyFetch(url, {
-        headers: { "X-Shopify-Access-Token": accessToken },
-      });
-      if (!res.ok) {
-        refundLogger.warn(
-          { statusCode: res.status, nameQuery },
-          "REST order lookup: non-OK status",
-        );
-        continue;
-      }
-      const data = (await res.json()) as { orders?: Array<{ id?: number; name?: string }> };
-      /* v8 ignore start */ // defensive: data?.orders ?? [] + o.name ?? "" fallbacks; only one path hit per fixture
-      const orders = data?.orders ?? [];
-      // Exact match on name (case-insensitive, ignoring leading #)
-      const norm = clean.toLowerCase();
-      const match = orders.find((o) => {
-        const n = (o.name ?? "").replace(/^#/, "").toLowerCase();
-        return n === norm;
-      });
-      /* v8 ignore stop */
-      if (match?.id) {
-        refundLogger.info(
-          { orderName: match.name, orderId: match.id, nameQuery },
-          "REST order lookup: found order",
-        );
-        return `gid://shopify/Order/${match.id}`;
-      }
-    } catch (err) {
-      /* v8 ignore start */ // defensive: error instanceof Error narrowing
-      refundLogger.warn(
-        { nameQuery, error: err instanceof Error ? err.message : String(err) },
-        "REST order lookup: error",
-      );
-      /* v8 ignore stop */
-    }
-  }
-  return null;
-}
-
-/** Attach REST credentials to an admin client so fetchOrderByOrderNumber can use REST fallback */
+/** Attach raw-fetch credentials to an admin client so lookup helpers can bypass SDK wrapping. */
 export function withRestCredentials(
   admin: AdminGraphQL,
   shopDomain: string,
@@ -681,13 +613,13 @@ export async function fetchOrderByOrderNumber(
     return fetchOrderByGid(admin, clean);
   }
 
-  // Strategy 1 (PRIMARY — raw fetch, bypasses SDK wrapping issues):
-  const hasRestCreds = !!admin._rest?.accessToken;
+  // Strategy 1 (PRIMARY — raw GraphQL fetch, bypasses SDK wrapping issues):
+  const hasRawFetchCreds = !!admin._rest?.accessToken;
   refundLogger.info(
-    { clean, hasRestCreds, shopDomain: admin._rest?.shopDomain ?? "none" },
+    { clean, hasRawFetchCreds, shopDomain: admin._rest?.shopDomain ?? "none" },
     "fetchOrderByOrderNumber: starting lookup",
   );
-  if (hasRestCreds) {
+  if (hasRawFetchCreds) {
     const { shopDomain, accessToken } = admin._rest!;
     // name:#ORDER is the proven working format; try it first, then without #
     for (const q of [`name:#${clean}`, `name:${clean}`]) {
@@ -709,30 +641,14 @@ export async function fetchOrderByOrderNumber(
         /* v8 ignore stop */
       }
     }
-    // REST API exact name match (single call, fast)
-    try {
-      const gid = await restOrderLookupByName(shopDomain, accessToken, clean);
-      if (gid) {
-        refundLogger.info({ gid }, "fetchOrderByOrderNumber: found via REST API");
-        return fetchOrderByGid(admin, gid);
-      }
-    } catch (err) {
-      // unreachable: restOrderLookupByName wraps everything in try/catch and never throws
-      /* v8 ignore start */
-      refundLogger.warn(
-        { error: err instanceof Error ? err.message : String(err) },
-        "fetchOrderByOrderNumber: REST lookup error",
-      );
-      /* v8 ignore stop */
-    }
   } else {
     refundLogger.warn(
-      { hasAccessToken: !!admin._rest?.accessToken, hasRest: !!admin._rest },
-      "fetchOrderByOrderNumber: no REST credentials, skipping raw fetch",
+      { hasAccessToken: !!admin._rest?.accessToken, hasRawFetchCredentials: !!admin._rest },
+      "fetchOrderByOrderNumber: no raw fetch credentials, skipping raw GraphQL fetch",
     );
   }
 
-  // Strategy 2 (FALLBACK — SDK's admin.graphql(), for cases without REST credentials):
+  // Strategy 2 (FALLBACK — SDK's admin.graphql(), for cases without raw-fetch credentials):
   for (const q of [`name:#${clean}`, `name:${clean}`]) {
     try {
       refundLogger.info({ query: q }, "fetchOrderByOrderNumber: Strategy 2 (SDK) trying query");
@@ -1362,7 +1278,7 @@ export async function fetchOrderLineItemsByName(
     /* v8 ignore stop */
   }
 
-  // Also try via raw REST + minimal GraphQL if REST creds are available
+  // Also try via raw GraphQL if raw-fetch credentials are available.
   if (admin._rest?.accessToken) {
     const { shopDomain, accessToken } = admin._rest;
     const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
@@ -1758,7 +1674,7 @@ export async function createRefund(
               return {
                 success: false,
                 error:
-                  'Shopify reports zero refundable amount for this order. This may be a COD order, a fully gift-card-paid order, or already partially refunded. Use the "Discount code" refund method instead, or process manually in Shopify Admin.',
+                  "Shopify reports zero refundable amount for this order. This may be a COD order, a fully gift-card-paid order, or already partially refunded. Issue store credit when eligible, or process the case manually in Shopify Admin.",
               };
             }
             /* v8 ignore stop */
@@ -1849,7 +1765,7 @@ export async function createRefund(
           return {
             success: false,
             error:
-              'No refundable amount found for store credit. Use the "Discount code" refund method instead.',
+              "No refundable amount found for store credit. Issue store credit only when Shopify reports a refundable amount, or process the case manually in Shopify Admin.",
           };
         }
 

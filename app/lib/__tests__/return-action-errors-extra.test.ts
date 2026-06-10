@@ -74,7 +74,8 @@ describe("enrichRefundError — uncovered alternatives", () => {
       orderName: "#1001",
     });
     expect(result).toContain("Shopify account");
-    expect(result).toContain("Discount code");
+    expect(result).toContain("Shopify Admin");
+    expect(result).not.toContain("Discount code");
   });
 
   it("matches 'customer ... not found' alternative regardless of method", () => {
@@ -120,7 +121,8 @@ describe("enrichRefundError — uncovered alternatives", () => {
       method: "original",
       orderName: null,
     });
-    expect(result).toContain("Discount code");
+    expect(result).toContain("Shopify Admin");
+    expect(result).not.toContain("Discount code");
     expect(result).toContain("gift card");
   });
 

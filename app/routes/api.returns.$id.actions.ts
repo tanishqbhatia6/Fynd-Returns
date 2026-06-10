@@ -92,7 +92,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (!id) return Response.json({ error: "Return ID required" }, { status: 400 });
 
   const { session, admin: rawAdmin } = await authenticate.admin(request);
-  // Attach REST credentials so order lookups can fall back to REST API (exact name match)
+  // Attach raw-fetch credentials so order lookups can bypass SDK response wrapping when needed.
   /* v8 ignore start - defensive nullish fallbacks on session fields */
   const sessionAccessToken = session.accessToken ?? "";
   refundLogger.info(

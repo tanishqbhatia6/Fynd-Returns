@@ -50,7 +50,7 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
-  sendOtpEmailMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendOtpEmailMock: vi.fn(async () => ({ success: true })),
   fetchOrdersByFilterMock: vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () => []),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderByGidMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
@@ -145,7 +145,7 @@ beforeEach(() => {
   checkRateLimitMock
     .mockReset()
     .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
-  sendOtpEmailMock.mockReset().mockResolvedValue(undefined);
+  sendOtpEmailMock.mockReset().mockResolvedValue({ success: true });
   fetchOrdersByFilterMock.mockReset().mockResolvedValue([]);
   fetchOrderByOrderNumberMock.mockReset().mockResolvedValue(null);
   fetchOrderByGidMock.mockReset().mockResolvedValue(null);

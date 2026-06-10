@@ -75,8 +75,18 @@ function fetchCallUrl(idx = 0): string {
   return calls[idx][0];
 }
 
+function fetchCallBody(idx = 0): { query?: string; variables?: Record<string, unknown> } {
+  const calls = (
+    globalThis.fetch as unknown as { mock: { calls: Array<[string, { body?: string }]> } }
+  ).mock.calls;
+  return JSON.parse(calls[idx][1]?.body || "{}") as {
+    query?: string;
+    variables?: Record<string, unknown>;
+  };
+}
+
 describe("specific product fetch by id", () => {
-  it("strips gid prefix from productId before hitting Shopify Admin REST", async () => {
+  it("sends product GID through Shopify Admin GraphQL", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -111,12 +121,11 @@ describe("specific product fetch by id", () => {
       context: {},
     } as never);
 
-    const url = fetchCallUrl();
-    expect(url).toContain("/products/9876.json");
-    expect(url).not.toContain("gid");
+    expect(fetchCallUrl()).toContain("/graphql.json");
+    expect(fetchCallBody().variables?.id).toBe("gid://shopify/Product/9876");
   });
 
-  it("uses bare numeric productId verbatim (no gid prefix)", async () => {
+  it("normalizes bare numeric productId to a GID", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ product: null }),
@@ -128,7 +137,8 @@ describe("specific product fetch by id", () => {
       context: {},
     } as never);
 
-    expect(fetchCallUrl()).toContain("/products/42.json");
+    expect(fetchCallUrl()).toContain("/graphql.json");
+    expect(fetchCallBody().variables?.id).toBe("gid://shopify/Product/42");
   });
 
   it("returns empty products[] when single-product response has no product field", async () => {
@@ -236,7 +246,7 @@ describe("specific product fetch by id", () => {
 });
 
 describe("search by query + product_type filter", () => {
-  it("encodes title query parameter when search is provided", async () => {
+  it("sends title search through GraphQL variables when search is provided", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ products: [] }),
@@ -248,12 +258,11 @@ describe("search by query + product_type filter", () => {
       context: {},
     } as never);
 
-    const url = fetchCallUrl();
-    expect(url).toContain("title=red%20shirt");
-    expect(url).toContain("/products.json");
+    expect(fetchCallUrl()).toContain("/graphql.json");
+    expect(fetchCallBody().variables?.query).toBe('title:"red shirt"');
   });
 
-  it("hits the search endpoint variant when productType is provided alone", async () => {
+  it("sends product type search through GraphQL variables when productType is provided alone", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ products: [] }),
@@ -265,13 +274,11 @@ describe("search by query + product_type filter", () => {
       context: {},
     } as never);
 
-    // queryParts now non-empty -> branch with title= is taken
-    const url = fetchCallUrl();
-    expect(url).toContain("title=");
-    expect(url).toContain("/products.json");
+    expect(fetchCallUrl()).toContain("/graphql.json");
+    expect(fetchCallBody().variables?.query).toBe('product_type:"Shirts"');
   });
 
-  it("uses default products endpoint (no title param) when neither search nor productType given", async () => {
+  it("uses products GraphQL query without a search query when neither search nor productType given", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ products: [] }),
@@ -283,9 +290,8 @@ describe("search by query + product_type filter", () => {
       context: {},
     } as never);
 
-    const url = fetchCallUrl();
-    expect(url).toContain("/products.json?limit=20");
-    expect(url).not.toContain("title=");
+    expect(fetchCallUrl()).toContain("/graphql.json");
+    expect(fetchCallBody().variables).toMatchObject({ first: 20, query: null });
   });
 
   it("respects custom limit below the 50 cap", async () => {
@@ -300,7 +306,8 @@ describe("search by query + product_type filter", () => {
       context: {},
     } as never);
 
-    expect(fetchCallUrl()).toContain("limit=12");
+    expect(fetchCallUrl()).toContain("/graphql.json");
+    expect(fetchCallBody().variables?.first).toBe(12);
   });
 
   it("sends X-Shopify-Access-Token header from the persisted session", async () => {

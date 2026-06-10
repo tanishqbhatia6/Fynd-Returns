@@ -89,8 +89,7 @@ describe("fetchOrderByOrderNumber — raw search throws (line 612 catch)", () =>
     // catch at line 611-613.
     // Then second attempt (name:X1) also returns a malformed node — same
     // throw path, second catch entry.
-    // After Strategy 1, REST lookup runs; we let it return 404 (no match)
-    // so we fall through to Strategy 2 (SDK), which returns empty.
+    // After Strategy 1, we fall through to Strategy 2 (SDK), which returns empty.
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       // Strategy 1, attempt 1: raw GraphQL — malformed node → parseOrderNode throws
@@ -107,20 +106,7 @@ describe("fetchOrderByOrderNumber — raw search throws (line 612 catch)", () =>
           headers: { "Content-Type": "application/json" },
         }),
       )
-      // REST lookup (#X1): empty → falls through
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ orders: [] }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      )
-      // REST lookup (X1): empty → falls through
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ orders: [] }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
+      ;
     // SDK fallback (Strategy 2 + Strategy 3): all empty → null result.
     const { admin: baseAdmin } = makeAdmin([
       { data: { orders: { nodes: [] } } }, // name:#X1
@@ -130,8 +116,7 @@ describe("fetchOrderByOrderNumber — raw search throws (line 612 catch)", () =>
     const admin = withRestCredentials(baseAdmin, "shop.myshopify.com", "tok");
     const order = await fetchOrderByOrderNumber(admin, "X1");
     expect(order).toBeNull();
-    // Both raw GraphQL calls + both REST calls landed
-    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 });
 

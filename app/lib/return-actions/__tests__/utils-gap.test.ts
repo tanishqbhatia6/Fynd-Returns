@@ -157,7 +157,7 @@ describe("notification.server.ts — utils gap coverage", () => {
   });
 
   // ── sendOtpEmail
-  it("sendOtpEmail: returns success when SMTP not configured (skip silently)", async () => {
+  it("sendOtpEmail: returns failure when SMTP is not configured", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "s1", settings: null });
     const { sendOtpEmail } = await import("../../notification.server");
     const r = await sendOtpEmail({
@@ -165,7 +165,8 @@ describe("notification.server.ts — utils gap coverage", () => {
       to: "u@example.com",
       otp: "1234",
     });
-    expect(r.success).toBe(true);
+    expect(r.success).toBe(false);
+    expect(r.error).toMatch(/Email verification is not configured/i);
     expect(sendMailMock).not.toHaveBeenCalled();
   });
 

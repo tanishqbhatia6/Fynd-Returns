@@ -6,6 +6,10 @@ import { login } from "../../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
+  if (url.searchParams.get("id_token")) {
+    throw redirect(`/app?${url.searchParams.toString()}`);
+  }
+
   const params = getEmbeddedAdminLaunchParams(request, url.searchParams);
   if (params) {
     throw redirect(`/app?${params.toString()}`);

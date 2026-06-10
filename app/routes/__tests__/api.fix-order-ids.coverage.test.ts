@@ -73,7 +73,7 @@ afterEach(() => {
 // ─────────────────────────────────────────────────────────────────────
 
 describe("action fix path: resolveOrderByName", () => {
-  it("resolves order by name via REST and writes GID + name back to DB", async () => {
+  it("resolves order by name via GraphQL and writes GID + name back to DB", async () => {
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
         id: "rc-1",
@@ -103,11 +103,12 @@ describe("action fix path: resolveOrderByName", () => {
       where: { id: "rc-1" },
       data: { shopifyOrderId: "gid://shopify/Order/9999" },
     });
-    // Confirm we hit the orders.json REST endpoint with #1001.
+    // Confirm we hit the Admin GraphQL endpoint with name:#1001.
     const url = (fetchMock.mock.calls[0]?.[0] ?? "") as string;
+    const gqlBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}"));
     expect(url).toContain("/admin/api/");
-    expect(url).toContain("/orders.json");
-    expect(url).toContain("name=%231001");
+    expect(url).toContain("/graphql.json");
+    expect(gqlBody.variables.query).toBe("name:#1001");
   });
 
   it("falls back to bare-name query when prefixed lookup misses", async () => {
@@ -146,7 +147,7 @@ describe("action fix path: resolveOrderByName", () => {
       },
     ]);
     extractAffiliateMock.mockReturnValueOnce("FYNDSHOPIFYX14126");
-    // Each candidate triggers two REST calls (with `#` and bare). Variants
+    // Each candidate triggers two GraphQL calls (with `#` and bare). Variants
     // = [original, stripped, numeric]. We let the first resolution succeed
     // by returning the match on the very first call.
     fetchMock.mockResolvedValueOnce(
@@ -157,8 +158,8 @@ describe("action fix path: resolveOrderByName", () => {
     const body = await res.json();
     expect(body.resolved).toBe(1);
     // Confirm the first lookup used the original candidate name.
-    const firstUrl = (fetchMock.mock.calls[0]?.[0] ?? "") as string;
-    expect(firstUrl).toContain("FYNDSHOPIFYX14126");
+    const firstBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body ?? "{}"));
+    expect(firstBody.variables.query).toBe("name:#FYNDSHOPIFYX14126");
   });
 
   it("records NO_CANDIDATES when no order name and no Fynd affiliate id", async () => {
@@ -194,7 +195,7 @@ describe("action fix path: resolveOrderByName", () => {
       },
     ]);
     extractAffiliateMock.mockReturnValueOnce("9999");
-    // All REST queries return empty → resolveOrderByName returns null.
+    // All GraphQL queries return empty -> resolveOrderByName returns null.
     fetchMock.mockResolvedValue(jsonResponse({ orders: [] }));
 
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
@@ -230,7 +231,7 @@ describe("action fix path: resolveOrderByName", () => {
     expect(body.results[0].status).toBe("NOT_FOUND_IN_SHOPIFY");
   });
 
-  it("treats non-OK Shopify REST as a miss and continues to next variant", async () => {
+  it("treats non-OK Shopify GraphQL as a miss and continues to next variant", async () => {
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
         id: "rc-5xx",
@@ -241,7 +242,7 @@ describe("action fix path: resolveOrderByName", () => {
         items: [],
       },
     ]);
-    // First REST call 500s; second succeeds.
+    // First GraphQL call 500s; second succeeds.
     fetchMock
       .mockResolvedValueOnce(new Response("nope", { status: 500 }))
       .mockResolvedValueOnce(jsonResponse({ orders: [{ id: 42, name: "1001" }] }));
@@ -309,7 +310,7 @@ describe("action fix path: line item GID resolution", () => {
       },
     ]);
     fetchMock
-      // 1) resolveOrderByName REST call
+      // 1) resolveOrderByName GraphQL call
       .mockResolvedValueOnce(jsonResponse({ orders: [{ id: 555, name: "1001" }] }))
       // 2) fetchShopifyOrderLineItems GraphQL call
       .mockResolvedValueOnce(

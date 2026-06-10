@@ -92,7 +92,9 @@ describe("enrichRefundError", () => {
       method: "store_credit",
       orderName: "#1001",
     });
-    expect(result).toContain("Discount code");
+    expect(result).toContain("Shopify account");
+    expect(result).toContain("Shopify Admin");
+    expect(result).not.toContain("Discount code");
   });
 
   it("includes order name in already-refunded message", () => {
@@ -116,7 +118,8 @@ describe("enrichRefundError", () => {
       method: "store_credit",
       orderName: null,
     });
-    expect(result).toContain("Discount code");
+    expect(result).toContain("Shopify Admin");
+    expect(result).not.toContain("Discount code");
   });
 
   it("returns input unchanged when no rule matches", () => {

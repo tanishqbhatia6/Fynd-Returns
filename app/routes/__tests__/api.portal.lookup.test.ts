@@ -27,7 +27,7 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
-  sendOtpEmailMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendOtpEmailMock: vi.fn(async () => ({ success: true })),
   fetchOrdersByFilterMock: vi.fn(async () => []),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
   shopifyModuleMock: { unauthenticated: { admin: vi.fn() } },
@@ -107,7 +107,7 @@ beforeEach(() => {
   checkRateLimitMock
     .mockReset()
     .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
-  sendOtpEmailMock.mockReset().mockResolvedValue(undefined);
+  sendOtpEmailMock.mockReset().mockResolvedValue({ success: true });
   fetchOrdersByFilterMock.mockReset().mockResolvedValue([]);
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
   shopifyModuleMock.unauthenticated.admin

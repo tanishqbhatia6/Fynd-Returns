@@ -161,5 +161,5 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<Response>
 };
 
 function getAppHost(): string {
-  return process.env.SHOPIFY_APP_URL || "https://returnpromax-web-production.up.railway.app";
+  return process.env.SHOPIFY_APP_URL || "";
 }

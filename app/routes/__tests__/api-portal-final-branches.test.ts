@@ -1107,7 +1107,7 @@ describe("api.portal.otp.send — final branches", () => {
     process.env.NODE_ENV = "test";
   });
 
-  it("email target but shopRecord lookup returns null → no email sent (line 65 branch)", async () => {
+  it("email target but shopRecord lookup returns null → fails before sending email", async () => {
     const prisma = createPrismaMock();
     prisma.lookupSession.findUnique.mockResolvedValue({
       id: "sess-1",
@@ -1119,7 +1119,7 @@ describe("api.portal.otp.send — final branches", () => {
     });
     prisma.lookupSession.update.mockResolvedValue({});
     prisma.shop.findUnique.mockResolvedValue(null); // shopRecord falsy
-    const sendOtpEmail = vi.fn(async () => undefined);
+    const sendOtpEmail = vi.fn(async () => ({ success: true }));
     vi.doMock("../../db.server", () => ({ default: prisma }));
     vi.doMock("../../lib/portal-cors.server", () => ({
       getPortalCorsHeaders: () => new Headers(),
@@ -1136,7 +1136,7 @@ describe("api.portal.otp.send — final branches", () => {
       params: {},
       context: {},
     } as never);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(404);
     expect(sendOtpEmail).not.toHaveBeenCalled();
   });
 });

@@ -3,7 +3,7 @@
  *
  * Focus areas:
  *  - Strategy 1 (GraphQL search) success / partial-success across the 7 query variants
- *  - Strategy 2 (REST API) success / failure / non-200 / throw individually
+ *  - Strategy 2 (Raw GraphQL search) success / failure / non-200 / throw individually
  *  - Strategy 3 (Pagination scan) hit / miss / GraphQL errors / throw
  *  - Strategy 4 (Metafield search) success / failure / throw
  *  - durationMs is a finite non-negative number on every result
@@ -11,7 +11,7 @@
  *  - Diagnostics fields (apiVersion, accessTokenLength, recentOrderNames, returnCase=null)
  *  - Shop domain without dot is left as-is in session.shop diagnostic
  *  - Leading "#" + whitespace in name is stripped to cleanedName
- *  - REST URL builds correctly when shop domain has no dot (appends .myshopify.com)
+ *  - Raw GraphQL URL builds correctly when shop domain has no dot (appends .myshopify.com)
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
@@ -146,7 +146,7 @@ describe("api.debug.order-lookup — extra coverage", () => {
     });
   });
 
-  it("REST API: first variant succeeds (#cleaned) → orderId is gid form", async () => {
+  it("Raw GraphQL search: first variant succeeds (#cleaned) → orderId is gid form", async () => {
     const graphqlMock = vi.fn().mockResolvedValue({ json: async () => EMPTY_GQL });
     authenticateMock.mockResolvedValueOnce({
       session: { shop: "store.myshopify.com", accessToken: "tok" },
@@ -163,18 +163,18 @@ describe("api.debug.order-lookup — extra coverage", () => {
 
     const res = await loader({ request: mkReq("name=1001"), params: {}, context: {} } as never);
     const body = await res.json();
-    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "REST API");
+    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "Raw GraphQL search");
     expect(rest).toHaveLength(2);
     expect(rest[0]).toMatchObject({
       success: true,
       orderId: "gid://shopify/Order/555",
       orderName: "#1001",
-      query: "GET orders.json?name=#1001",
+      query: "name:#1001",
     });
     expect(rest[1].success).toBe(false);
   });
 
-  it("REST API: throw is captured per-variant (does not abort other strategies)", async () => {
+  it("Raw GraphQL search: throw is captured per-variant (does not abort other strategies)", async () => {
     const graphqlMock = vi.fn().mockResolvedValue({ json: async () => EMPTY_GQL });
     authenticateMock.mockResolvedValueOnce({
       session: { shop: "store.myshopify.com", accessToken: "tok" },
@@ -184,7 +184,7 @@ describe("api.debug.order-lookup — extra coverage", () => {
 
     const res = await loader({ request: mkReq("name=1001"), params: {}, context: {} } as never);
     const body = await res.json();
-    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "REST API");
+    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "Raw GraphQL search");
     expect(rest).toHaveLength(2);
     rest.forEach((r: { success: boolean; error?: string }) => {
       expect(r.success).toBe(false);
@@ -199,7 +199,7 @@ describe("api.debug.order-lookup — extra coverage", () => {
     ).toBeDefined();
   });
 
-  it("REST API: non-string body for non-200 is gracefully truncated to <=200 chars", async () => {
+  it("Raw GraphQL search: non-string body for non-200 is gracefully truncated to <=200 chars", async () => {
     const graphqlMock = vi.fn().mockResolvedValue({ json: async () => EMPTY_GQL });
     authenticateMock.mockResolvedValueOnce({
       session: { shop: "store.myshopify.com", accessToken: "tok" },
@@ -214,11 +214,11 @@ describe("api.debug.order-lookup — extra coverage", () => {
 
     const res = await loader({ request: mkReq("name=1001"), params: {}, context: {} } as never);
     const body = await res.json();
-    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "REST API");
+    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "Raw GraphQL search");
     expect(rest[0].error).toMatch(/^HTTP 500: x{200}$/);
   });
 
-  it("REST API: shop without dot gets .myshopify.com appended in URL", async () => {
+  it("Raw GraphQL search: shop without dot gets .myshopify.com appended in URL", async () => {
     const graphqlMock = vi.fn().mockResolvedValue({ json: async () => EMPTY_GQL });
     authenticateMock.mockResolvedValueOnce({
       session: { shop: "barestore", accessToken: "tok" },
@@ -234,7 +234,7 @@ describe("api.debug.order-lookup — extra coverage", () => {
     const urls = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
     expect(urls.length).toBe(2);
     urls.forEach((u: string) =>
-      expect(u).toMatch(/^https:\/\/barestore\.myshopify\.com\/admin\/api\/2026-01\/orders\.json/),
+      expect(u).toMatch(/^https:\/\/barestore\.myshopify\.com\/admin\/api\/2026-01\/graphql\.json/),
     );
   });
 
@@ -497,8 +497,8 @@ describe("api.debug.order-lookup — extra coverage", () => {
     const body = await res.json();
     expect(body.diagnostics.hasAccessToken).toBe(false);
     expect(body.diagnostics.accessTokenLength).toBe(0);
-    // REST should still have run (with empty token), 2 results recorded
-    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "REST API");
+    // Raw GraphQL should still have run (with empty token), 2 results recorded
+    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "Raw GraphQL search");
     expect(rest).toHaveLength(2);
   });
 

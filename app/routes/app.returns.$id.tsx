@@ -453,7 +453,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       | Awaited<ReturnType<typeof fetchOrderByOrderNumber>>
       | null = null;
     let fyndPayloadJson = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
-    // Attach REST credentials so order lookup can fall back to REST API (exact name match).
+    // Attach raw-fetch credentials so order lookup can bypass SDK response wrapping when needed.
     // session.accessToken / shopifyOrderName fall-throughs are defensive — production
     // sessions always carry an access token, and the loader has already returned a 404
     // when the orderName is missing.

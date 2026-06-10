@@ -14,8 +14,7 @@
   Out for Delivery → Received → Completed.
 
   Merchants configure: heading, button label, accent color, and the
-  app-host URL (must be set on first install — defaults to the
-  Railway production host but can be overridden for staging/testing).
+  app-host URL (must be set on first install).
 {%- endcomment -%}
 
 {%- liquid
@@ -24,7 +23,7 @@
   assign button_label = block.settings.button_label | default: 'Track return'
   assign accent = block.settings.accent_color | default: '#0f172a'
   assign accent_text = block.settings.accent_text | default: '#ffffff'
-  assign app_host = block.settings.app_host | default: 'https://returnpromax-web-production.up.railway.app'
+  assign app_host = block.settings.app_host | default: ''
   assign block_id = block.id | replace: '_', '-'
 -%}
 
@@ -423,7 +422,7 @@
       "type": "url",
       "id": "app_host",
       "label": "App host URL",
-      "info": "Backend host that serves the public track endpoint. Default points to production."
+      "info": "Backend host that serves the public track endpoint, including https://."
     }
   ]
 }

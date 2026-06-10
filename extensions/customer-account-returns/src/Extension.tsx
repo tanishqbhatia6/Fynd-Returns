@@ -20,7 +20,23 @@ type ApiResponse = {
   error?: string;
 };
 
-const APP_HOST = "https://returnpromax-web-production.up.railway.app";
+type ExtensionSettings = {
+  app_host?: string | null;
+};
+
+declare const process:
+  | {
+      env?: {
+        SHOPIFY_APP_URL?: string;
+      };
+    }
+  | undefined;
+
+function appHost(): string {
+  const settings = shopify.settings.value as ExtensionSettings | undefined;
+  const configuredHost = String(settings?.app_host || process?.env?.SHOPIFY_APP_URL || "").trim();
+  return configuredHost.replace(/\/+$/, "");
+}
 
 export default async function (): Promise<void> {
   render(<Extension />, document.body);
@@ -42,8 +58,14 @@ function Extension() {
     let cancelled = false;
     async function load(): Promise<void> {
       try {
+        const host = appHost();
+        if (!host) {
+          setError("The app host URL is not configured.");
+          setLoading(false);
+          return;
+        }
         const token = await shopify.sessionToken.get();
-        const res = await fetch(`${APP_HOST}/api/customer-account/returns`, {
+        const res = await fetch(`${host}/api/customer-account/returns`, {
           method: "GET",
           headers: { Authorization: `Bearer ${token}` },
         });

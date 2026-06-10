@@ -15,7 +15,7 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
  *   - Account-lockout boundary conditions: verified sessions excluded,
  *     non-OTP lookup types unaffected, exactly-15 vs exactly-14 failures.
  *   - Resend semantics when the existing session is at MAX_OTP_ATTEMPTS.
- *   - sendOtpEmail failure swallowed — request still resolves 200.
+ *   - sendOtpEmail failure fails closed with an actionable error.
  *   - lookupValueHash is the SHA-256 of the lowercase-trimmed contact, so
  *     case variants share the same lockout bucket.
  *   - OTP gate skipped when only the unrelated channel is enabled
@@ -44,7 +44,7 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
-  sendOtpEmailMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendOtpEmailMock: vi.fn(async () => ({ success: true })),
   fetchOrdersByFilterMock: vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () => []),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
@@ -131,7 +131,7 @@ beforeEach(() => {
   checkRateLimitMock
     .mockReset()
     .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
-  sendOtpEmailMock.mockReset().mockResolvedValue(undefined);
+  sendOtpEmailMock.mockReset().mockResolvedValue({ success: true });
   fetchOrdersByFilterMock.mockReset().mockResolvedValue([]);
   fetchOrderByOrderNumberMock.mockReset().mockResolvedValue(null);
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
@@ -692,7 +692,7 @@ describe("existing-session resend edge cases", () => {
 // ───────────────────── send-OTP failure handling ─────────────────────
 
 describe("send-OTP failure handling", () => {
-  it("sendOtpEmail rejection is swallowed — request still returns 200 with sessionId", async () => {
+  it("sendOtpEmail rejection fails closed and keeps the session retryable", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     prismaMock.lookupSession.findMany.mockResolvedValueOnce([]);
     prismaMock.lookupSession.create.mockResolvedValueOnce({ id: "swallow-sess" });
@@ -704,13 +704,17 @@ describe("send-OTP failure handling", () => {
       context: {},
     } as never);
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
     const body = await res.json();
-    expect(body.sessionId).toBe("swallow-sess");
-    expect(body.requiresOtp).toBe(true);
+    expect(body.emailVerificationUnavailable).toBe(true);
+    expect(body.requiresOtp).toBeUndefined();
+    expect(prismaMock.lookupSession.update).toHaveBeenCalledWith({
+      where: { id: "swallow-sess" },
+      data: { otpTarget: null, otpSentAt: null, attemptsCount: 0 },
+    });
   });
 
-  it("sendOtpEmail rejection on resend path also swallowed", async () => {
+  it("sendOtpEmail rejection on resend path also fails closed", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "resend-fail",
@@ -734,9 +738,14 @@ describe("send-OTP failure handling", () => {
       context: {},
     } as never);
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
     const body = await res.json();
-    expect(body.requiresOtp).toBe(true);
+    expect(body.emailVerificationUnavailable).toBe(true);
+    expect(body.requiresOtp).toBeUndefined();
+    expect(prismaMock.lookupSession.update).toHaveBeenLastCalledWith({
+      where: { id: "resend-fail" },
+      data: { otpTarget: null, otpSentAt: null, attemptsCount: 1 },
+    });
   });
 });
 

@@ -57,7 +57,7 @@ const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  sendOtpEmailMock.mockReset().mockResolvedValue(undefined);
+  sendOtpEmailMock.mockReset().mockResolvedValue({ success: true });
   checkRateLimitMock
     .mockReset()
     .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
@@ -125,6 +125,7 @@ describe("api.portal.otp.send — cooldown enforcement", () => {
       otpSentAt: new Date(Date.now() - OTP_COOLDOWN_MS - 5),
       lookupValueNorm: "u@example.com",
     });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ shopDomain: "store.myshopify.com" });
     const res = await action({
       request: jsonReq({ sessionId: "s-1" }),
       params: {},
@@ -143,6 +144,7 @@ describe("api.portal.otp.send — cooldown enforcement", () => {
       otpSentAt: null,
       lookupValueNorm: "u@example.com",
     });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ shopDomain: "store.myshopify.com" });
     const res = await action({
       request: jsonReq({ sessionId: "s-1" }),
       params: {},
@@ -163,6 +165,7 @@ describe("api.portal.otp.send — max attempts cap", () => {
       otpSentAt: null,
       lookupValueNorm: "u@example.com",
     });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ shopDomain: "store.myshopify.com" });
     const res = await action({
       request: jsonReq({ sessionId: "s-1" }),
       params: {},
@@ -183,6 +186,7 @@ describe("api.portal.otp.send — max attempts cap", () => {
       otpSentAt: null,
       lookupValueNorm: "u@example.com",
     });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ shopDomain: "store.myshopify.com" });
     const res = await action({
       request: jsonReq({ sessionId: "s-1" }),
       params: {},

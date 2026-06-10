@@ -288,9 +288,11 @@ describe("product fetch paths", () => {
       json: async () => ({ products: [] }),
     }) as typeof fetch;
     await loader({ request: mkReq("shop=store&limit=999"), params: {}, context: {} } as never);
-    const fetchCall = (globalThis.fetch as unknown as { mock: { calls: Array<[string, unknown]> } })
-      .mock.calls[0][0];
-    expect(fetchCall).toMatch(/limit=50/);
+    const fetchCall = (
+      globalThis.fetch as unknown as { mock: { calls: Array<[string, { body?: string }]> } }
+    ).mock.calls[0];
+    expect(fetchCall[0]).toContain("/graphql.json");
+    expect(JSON.parse(fetchCall[1].body || "{}").variables.first).toBe(50);
   });
 
   it("returns empty array when Shopify returns non-ok", async () => {

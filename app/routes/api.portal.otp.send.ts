@@ -11,9 +11,24 @@ import { portalLogger } from "../lib/observability/logger.server";
 const OTP_COOLDOWN_MS = 60_000;
 const MAX_OTP_ATTEMPTS = 5;
 const BCRYPT_COST = 10;
+const OTP_EMAIL_FAILED_MESSAGE =
+  "Could not send the verification email. Ask the store to check email settings and try again.";
 
 async function hashOtp(otp: string): Promise<string> {
   return bcrypt.hash(otp, BCRYPT_COST);
+}
+
+async function resetFailedOtpSend(sessionId: string, attemptsCount: number) {
+  await prisma.lookupSession
+    .update({
+      where: { id: sessionId },
+      data: {
+        otpTarget: null,
+        otpSentAt: null,
+        attemptsCount,
+      },
+    })
+    .catch(() => {});
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -90,6 +105,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
     }
 
+    const shopRecord = await prisma.shop.findUnique({
+      where: { id: session.shopId },
+      select: { shopDomain: true },
+    });
+    if (!shopRecord) {
+      portalOtpCounter.add(1, { action: "send", outcome: "shop_not_found" });
+      return withCors(Response.json({ error: "Shop not found" }, { status: 404 }), request);
+    }
+
     await prisma.lookupSession.update({
       where: { id: sessionId },
       data: {
@@ -99,23 +123,44 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
 
-    if (target.includes("@")) {
-      try {
-        const shopRecord = await prisma.shop.findUnique({
-          where: { id: session.shopId },
-          select: { shopDomain: true },
-        });
-        if (shopRecord) {
-          await sendOtpEmail({
-            shopDomain: shopRecord.shopDomain,
-            to: target,
-            otp,
-          });
-        }
-        } catch (emailErr) {
-          portalOtpCounter.add(1, { action: "send", outcome: "email_failed" });
-          portalLogger.warn({ err: emailErr, sessionId }, "Portal OTP email send failed");
-        }
+    try {
+      const emailResult = await sendOtpEmail({
+        shopDomain: shopRecord.shopDomain,
+        to: target,
+        otp,
+      });
+      if (!emailResult.success) {
+        await resetFailedOtpSend(sessionId, session.attemptsCount);
+        portalOtpCounter.add(1, { action: "send", outcome: "email_failed" });
+        portalLogger.warn(
+          { error: emailResult.error, sessionId, shopDomain: shopRecord.shopDomain },
+          "Portal OTP email send failed",
+        );
+        return withCors(
+          Response.json(
+            {
+              error: OTP_EMAIL_FAILED_MESSAGE,
+              emailVerificationUnavailable: true,
+            },
+            { status: 503 },
+          ),
+          request,
+        );
+      }
+    } catch (emailErr) {
+      await resetFailedOtpSend(sessionId, session.attemptsCount);
+      portalOtpCounter.add(1, { action: "send", outcome: "email_failed" });
+      portalLogger.warn({ err: emailErr, sessionId }, "Portal OTP email send failed");
+      return withCors(
+        Response.json(
+          {
+            error: OTP_EMAIL_FAILED_MESSAGE,
+            emailVerificationUnavailable: true,
+          },
+          { status: 503 },
+        ),
+        request,
+      );
     }
 
     portalOtpCounter.add(1, { action: "send", outcome: "success" });

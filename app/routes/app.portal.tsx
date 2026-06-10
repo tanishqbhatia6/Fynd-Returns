@@ -13,6 +13,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     const portalUrl = `https://${session.shop}/apps/returns`;
     const storeName = session.shop.replace(".myshopify.com", "");
+    const themeEditorUrl = `https://admin.shopify.com/store/${storeName}/themes/current/editor?context=apps`;
 
     const shop = await prisma.shop.findUnique({
       where: { shopDomain: session.shop },
@@ -42,6 +43,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return {
       portalUrl,
       storeName,
+      themeEditorUrl,
       hasTheme,
       theme,
       config,
@@ -55,6 +57,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return {
       portalUrl: "",
       storeName: session.shop?.replace(".myshopify.com", "") ?? "",
+      themeEditorUrl: "",
       hasTheme: false,
       theme: parsePortalTheme(null),
       config: parsePortalConfig(null),
@@ -66,7 +69,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export default function PortalInfo() {
-  const { portalUrl, storeName, hasTheme, theme, config, totalReturns, activeReturns } =
+  const { portalUrl, storeName, themeEditorUrl, hasTheme, theme, config, totalReturns, activeReturns } =
     useLoaderData<typeof loader>();
   const [copied, setCopied] = useState(false);
 
@@ -990,6 +993,40 @@ export default function PortalInfo() {
                 Quick actions
               </h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {themeEditorUrl ? (
+                  <a
+                    href={themeEditorUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ textDecoration: "none", width: "100%" }}
+                  >
+                    <s-button variant="secondary" style={{ width: "100%" }}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          fontSize: 13,
+                        }}
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <rect x="3" y="4" width="18" height="16" rx="2" />
+                          <path d="M8 8h8" />
+                          <path d="M8 12h5" />
+                          <path d="M8 16h8" />
+                        </svg>
+                        Add storefront block
+                      </span>
+                    </s-button>
+                  </a>
+                ) : null}
                 <Link to="/app/settings/widget" style={{ textDecoration: "none", width: "100%" }}>
                   <s-button variant="secondary" style={{ width: "100%" }}>
                     <span
@@ -1050,6 +1087,25 @@ export default function PortalInfo() {
                     </span>
                   </s-button>
                 </Link>
+              </div>
+              <div
+                style={{
+                  marginTop: 16,
+                  paddingTop: 14,
+                  borderTop: "1px solid #e5e7eb",
+                  color: "var(--rpm-text-muted, #64748b)",
+                  fontSize: 12,
+                  lineHeight: 1.55,
+                }}
+              >
+                <div style={{ fontWeight: 700, color: "var(--rpm-text, #0f172a)", marginBottom: 6 }}>
+                  Storefront setup
+                </div>
+                <ol style={{ margin: 0, paddingLeft: 18 }}>
+                  <li>Open the theme editor from Add storefront block.</li>
+                  <li>Add an app block: Returns & Exchanges, Returns link, or Track a return.</li>
+                  <li>For Track a return, set App host URL to this app's production HTTPS URL.</li>
+                </ol>
               </div>
             </div>
           </div>

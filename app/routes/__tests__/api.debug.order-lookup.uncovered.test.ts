@@ -4,7 +4,7 @@
  * Targets:
  *  - Line 144: GraphQL search catch where the thrown value is NOT an Error
  *    (exercises the `String(err)` branch of the ternary).
- *  - Line 170: REST API catch where the thrown value is NOT an Error
+ *  - Line 170: Raw GraphQL search catch where the thrown value is NOT an Error
  *    (exercises the `String(err)` branch of the ternary).
  *  - Lines 193, 195, 200, 201: pagination scan node mapping where node.name
  *    is undefined (exercises the `?? ""` branch and the `?.` optional chain
@@ -119,7 +119,7 @@ describe("api.debug.order-lookup — uncovered branches", () => {
     expect(gql[0].error).toBe("[object Object]");
   });
 
-  it("REST API: non-Error throw is stringified via String(err) (line 170)", async () => {
+  it("Raw GraphQL search: non-Error throw is stringified via String(err) (line 170)", async () => {
     const graphqlMock = vi.fn().mockResolvedValue({ json: async () => EMPTY_GQL });
     authenticateMock.mockResolvedValueOnce({
       session: { shop: "store.myshopify.com", accessToken: "tok" },
@@ -142,7 +142,7 @@ describe("api.debug.order-lookup — uncovered branches", () => {
       context: {},
     } as never);
     const body = await res.json();
-    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "REST API");
+    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "Raw GraphQL search");
     expect(rest[0]).toMatchObject({
       success: false,
       error: "rest-string-fail",
@@ -323,7 +323,7 @@ describe("api.debug.order-lookup — uncovered branches", () => {
     expect(gql[0].orderName).toBe("");
   });
 
-  it("REST API: orders array contains entries with missing id/name → defaults applied", async () => {
+  it("Raw GraphQL search: orders array contains entries with missing id/name → defaults applied", async () => {
     const graphqlMock = vi.fn().mockResolvedValue({ json: async () => EMPTY_GQL });
     authenticateMock.mockResolvedValueOnce({
       session: { shop: "store.myshopify.com", accessToken: "tok" },
@@ -341,7 +341,7 @@ describe("api.debug.order-lookup — uncovered branches", () => {
       context: {},
     } as never);
     const body = await res.json();
-    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "REST API");
+    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "Raw GraphQL search");
     // success because orders.length > 0 — but orderId is undefined because
     // res.orders[0]?.id is 0 which is falsy → orderId branch chooses undefined.
     expect(rest[0].success).toBe(true);
@@ -349,7 +349,7 @@ describe("api.debug.order-lookup — uncovered branches", () => {
     expect(rest[0].orderName).toBe("");
   });
 
-  it("REST API: data.orders is missing → orders default to []", async () => {
+  it("Raw GraphQL search: data.orders is missing → orders default to []", async () => {
     const graphqlMock = vi.fn().mockResolvedValue({ json: async () => EMPTY_GQL });
     authenticateMock.mockResolvedValueOnce({
       session: { shop: "store.myshopify.com", accessToken: "tok" },
@@ -366,7 +366,7 @@ describe("api.debug.order-lookup — uncovered branches", () => {
       context: {},
     } as never);
     const body = await res.json();
-    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "REST API");
+    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "Raw GraphQL search");
     expect(rest[0].success).toBe(false);
     expect(rest[1].success).toBe(false);
   });
@@ -489,7 +489,7 @@ describe("api.debug.order-lookup — uncovered branches", () => {
         context: {},
       } as never);
       const body = await res.json();
-      const rest = body.results.filter((r: { strategy: string }) => r.strategy === "REST API");
+      const rest = body.results.filter((r: { strategy: string }) => r.strategy === "Raw GraphQL search");
       expect(rest).toHaveLength(2);
       rest.forEach((r: { success: boolean; error?: string }) => {
         expect(r.success).toBe(false);
@@ -501,7 +501,7 @@ describe("api.debug.order-lookup — uncovered branches", () => {
     }
   });
 
-  it("REST API: text() rejection during non-200 still yields HTTP <status>: '' error", async () => {
+  it("Raw GraphQL search: text() rejection during non-200 still yields HTTP <status>: '' error", async () => {
     const graphqlMock = vi.fn().mockResolvedValue({ json: async () => EMPTY_GQL });
     authenticateMock.mockResolvedValueOnce({
       session: { shop: "store.myshopify.com", accessToken: "tok" },
@@ -521,7 +521,7 @@ describe("api.debug.order-lookup — uncovered branches", () => {
       context: {},
     } as never);
     const body = await res.json();
-    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "REST API");
+    const rest = body.results.filter((r: { strategy: string }) => r.strategy === "Raw GraphQL search");
     // body.text() throws → catch returns ""; error is "HTTP 503: "
     expect(rest[0].error).toBe("HTTP 503: ");
   });

@@ -22,7 +22,7 @@ const API_VERSION = "2026-01";
 const SHOPIFY_FETCH_TIMEOUT_MS = 15_000;
 
 /** Wrap fetch with an AbortController-based timeout so a hung upstream
- *  doesn't pin the worker. Used for direct REST/GraphQL calls in this
+ *  doesn't pin the worker. Used for direct GraphQL calls in this
  *  admin diagnostic+repair endpoint. */
 async function shopifyFetch(
   url: string,
@@ -60,20 +60,45 @@ async function resolveOrderByName(
   const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
   /* v8 ignore stop */
 
-  for (const nameQuery of [`#${clean}`, clean]) {
+  const gql = `#graphql
+    query ResolveOrderByName($query: String!) {
+      orders(first: 10, query: $query, sortKey: CREATED_AT, reverse: true) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+  `;
+
+  for (const nameQuery of [`name:#${clean}`, `name:${clean}`]) {
     try {
-      const url = `https://${shop}/admin/api/${API_VERSION}/orders.json?status=any&name=${encodeURIComponent(nameQuery)}&fields=id,name&limit=5`;
+      const url = `https://${shop}/admin/api/${API_VERSION}/graphql.json`;
       const res = await shopifyFetch(url, {
-        headers: { "X-Shopify-Access-Token": accessToken },
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": accessToken,
+        },
+        body: JSON.stringify({ query: gql, variables: { query: nameQuery } }),
       });
       if (!res.ok) continue;
       /* v8 ignore start - defensive `?? []`/`?? ""`/`?? "#..."` fallbacks */
-      const data = (await res.json()) as { orders?: Array<{ id?: number; name?: string }> };
-      const orders = data?.orders ?? [];
+      const data = (await res.json()) as {
+        data?: { orders?: { nodes?: Array<{ id?: string; name?: string }> } };
+        orders?: Array<{ id?: number | string; name?: string }>;
+        errors?: Array<{ message?: string }>;
+      };
+      if (data.errors?.length) continue;
+      const orders = data.data?.orders?.nodes ?? data.orders ?? [];
       const norm = clean.toLowerCase();
       const match = orders.find((o) => (o.name ?? "").replace(/^#/, "").toLowerCase() === norm);
       if (match?.id) {
-        return { gid: `gid://shopify/Order/${match.id}`, name: match.name ?? `#${clean}` };
+        const id = String(match.id);
+        return {
+          gid: id.startsWith("gid://shopify/Order/") ? id : `gid://shopify/Order/${id}`,
+          name: match.name ?? `#${clean}`,
+        };
       }
       /* v8 ignore stop */
     } catch {

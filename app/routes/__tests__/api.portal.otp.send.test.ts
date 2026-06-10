@@ -34,7 +34,7 @@ function jsonReq(body: unknown, method = "POST") {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  sendOtpEmailMock.mockReset().mockResolvedValue(undefined);
+  sendOtpEmailMock.mockReset().mockResolvedValue({ success: true });
   checkRateLimitMock
     .mockReset()
     .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
@@ -162,7 +162,7 @@ describe("action /api/portal/otp/send", () => {
     );
   });
 
-  it("swallows email send failures without failing the request", async () => {
+  it("fails closed when email send throws", async () => {
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
       id: "s-1",
       shopId: "shop-1",
@@ -178,7 +178,13 @@ describe("action /api/portal/otp/send", () => {
       params: {},
       context: {},
     } as never);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.emailVerificationUnavailable).toBe(true);
+    expect(prismaMock.lookupSession.update).toHaveBeenLastCalledWith({
+      where: { id: "s-1" },
+      data: { otpTarget: null, otpSentAt: null, attemptsCount: 0 },
+    });
   });
 
   it("fails closed when lookup value is a phone (non-@)", async () => {

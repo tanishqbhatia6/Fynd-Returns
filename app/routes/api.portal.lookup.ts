@@ -33,6 +33,8 @@ import { portalLogger } from "../lib/observability/logger.server";
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 min
 const OTP_COOLDOWN_MS = 60_000; // 60s resend cooldown
 const MAX_OTP_ATTEMPTS = 5;
+const OTP_EMAIL_FAILED_MESSAGE =
+  "Could not send the verification email. Ask the store to check email settings and try again.";
 // Cost factor — 10 is industry standard, ~50ms per hash. Verifying becomes
 // significantly slower than the previous unsalted digest, defeating rainbow tables
 // and slowing brute force enough to make the account-level lockout meaningful.
@@ -40,6 +42,32 @@ const BCRYPT_COST = 10;
 
 async function hashOtp(otp: string): Promise<string> {
   return bcrypt.hash(otp, BCRYPT_COST);
+}
+
+function otpEmailFailureResponse(request: Request): Response {
+  return withCors(
+    Response.json(
+      {
+        error: OTP_EMAIL_FAILED_MESSAGE,
+        emailVerificationUnavailable: true,
+      },
+      { status: 503 },
+    ),
+    request,
+  );
+}
+
+async function resetFailedOtpSend(sessionId: string, attemptsCount: number) {
+  await prisma.lookupSession
+    .update({
+      where: { id: sessionId },
+      data: {
+        otpTarget: null,
+        otpSentAt: null,
+        attemptsCount,
+      },
+    })
+    .catch(() => {});
 }
 
 function normalizeContactLookupValue(lookupType: string, value: unknown): string {
@@ -329,9 +357,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             },
           });
           try {
-            await sendOtpEmail({ shopDomain, to: contactNorm, otp });
+            const emailResult = await sendOtpEmail({ shopDomain, to: contactNorm, otp });
+            if (!emailResult.success) {
+              await resetFailedOtpSend(reusableExisting.id, reusableExisting.attemptsCount);
+              portalLogger.warn(
+                { error: emailResult.error, shopDomain },
+                "Portal lookup OTP email send failed",
+              );
+              return otpEmailFailureResponse(request);
+            }
           } catch (e) {
+            await resetFailedOtpSend(reusableExisting.id, reusableExisting.attemptsCount);
             portalLogger.warn({ err: e, shopDomain }, "Portal lookup OTP email send failed");
+            return otpEmailFailureResponse(request);
           }
           return withCors(
             Response.json({ requiresOtp: true, sessionId: reusableExisting.id }),
@@ -385,9 +423,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           },
         });
         try {
-          await sendOtpEmail({ shopDomain, to: contactNorm, otp });
+          const emailResult = await sendOtpEmail({ shopDomain, to: contactNorm, otp });
+          if (!emailResult.success) {
+            await resetFailedOtpSend(session.id, 0);
+            portalLogger.warn(
+              { error: emailResult.error, shopDomain },
+              "Portal lookup OTP email send failed",
+            );
+            return otpEmailFailureResponse(request);
+          }
         } catch (e) {
+          await resetFailedOtpSend(session.id, 0);
           portalLogger.warn({ err: e, shopDomain }, "Portal lookup OTP email send failed");
+          return otpEmailFailureResponse(request);
         }
         return withCors(Response.json({ requiresOtp: true, sessionId: session.id }), request);
       }

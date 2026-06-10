@@ -303,19 +303,16 @@ describe("fetchOrderByOrderNumber raw + REST", () => {
     expect(r?.name).toBe("#1001");
   });
 
-  it("falls through raw fetch when nodes is empty and tries REST + SDK fallbacks", async () => {
+  it("falls through raw fetch when nodes is empty and tries SDK fallbacks", async () => {
     // 1st raw-fetch call: empty nodes
     // 2nd raw-fetch call: empty nodes
-    // 3rd REST call: empty
-    // 4th REST call (clean): empty
     // Then SDK searchOrders calls (graphql) — return empty too.
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
       const u = String(url);
       if (u.includes("/graphql.json")) {
         return new Response(JSON.stringify({ data: { orders: { nodes: [] } } }), { status: 200 });
       }
-      // REST path
-      return new Response(JSON.stringify({ orders: [] }), { status: 200 });
+      throw new Error(`Unexpected non-GraphQL URL: ${u}`);
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
@@ -328,7 +325,7 @@ describe("fetchOrderByOrderNumber raw + REST", () => {
     expect(r).toBeNull();
   });
 
-  it("falls back to REST lookup when raw fetch returns no match", async () => {
+  it("falls back to SDK GraphQL lookup when raw fetch returns no match", async () => {
     let calls = 0;
     const fetchMock = vi.fn(async (url: string | URL | Request) => {
       calls++;
@@ -336,21 +333,21 @@ describe("fetchOrderByOrderNumber raw + REST", () => {
       if (u.includes("/graphql.json")) {
         return new Response(JSON.stringify({ data: { orders: { nodes: [] } } }), { status: 200 });
       }
-      // REST path: return matching order
-      return new Response(JSON.stringify({ orders: [{ id: 12345, name: "#ABC123" }] }), {
-        status: 200,
-      });
+      throw new Error(`Unexpected non-GraphQL URL: ${u}`);
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    // After REST returns gid, fetchOrderByGid is called via admin.graphql
     const { admin } = makeAdmin([
       {
         data: {
-          orderByIdentifier: {
-            id: "gid://shopify/Order/12345",
-            name: "#ABC123",
-            createdAt: "2026-05-01",
-            lineItems: { nodes: [] },
+          orders: {
+            nodes: [
+              {
+                id: "gid://shopify/Order/12345",
+                name: "#ABC123",
+                createdAt: "2026-05-01",
+                lineItems: { nodes: [] },
+              },
+            ],
           },
         },
       },

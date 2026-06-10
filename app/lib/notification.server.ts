@@ -869,8 +869,14 @@ export async function sendOtpEmail(params: {
   otp: string;
 }): Promise<SendResult> {
   const { smtp, i18n } = await getSmtpConfig(params.shopDomain);
-  if (!smtp) return { success: true };
   if (!params.to) return { success: false, error: "No recipient" };
+  if (!smtp) {
+    notifLogger.warn(
+      { shopDomain: params.shopDomain, notificationType: "otp", recipient: params.to },
+      "SMTP not configured — cannot send portal OTP email",
+    );
+    return { success: false, error: "Email verification is not configured for this store" };
+  }
 
   const labels = getPortalLabels(i18n.locale);
   const { subject, html } = otpEmail(params.otp, labels, i18n.locale);

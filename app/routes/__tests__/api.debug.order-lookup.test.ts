@@ -66,7 +66,7 @@ describe("GET /api/debug/order-lookup", () => {
       session: { shop: "store.myshopify.com", accessToken: "tok" },
       admin: { graphql: graphqlMock },
     });
-    // REST calls — 2 iterations
+    // Raw GraphQL calls — 2 iterations
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ orders: [] }),
@@ -138,7 +138,7 @@ describe("GET /api/debug/order-lookup", () => {
     expect(graphqlResults[0].error).toMatch(/throttled/);
   });
 
-  it("captures REST non-200 responses", async () => {
+  it("captures Raw GraphQL non-200 responses", async () => {
     const graphqlMock = vi
       .fn()
       .mockResolvedValue({ json: async () => ({ data: { orders: { nodes: [] } } }) });
@@ -154,7 +154,7 @@ describe("GET /api/debug/order-lookup", () => {
 
     const res = await loader({ request: mkReq("name=1001"), params: {}, context: {} } as never);
     const body = await res.json();
-    const restResults = body.results.filter((r: { strategy: string }) => r.strategy === "REST API");
+    const restResults = body.results.filter((r: { strategy: string }) => r.strategy === "Raw GraphQL search");
     expect(restResults[0].error).toMatch(/HTTP 429/);
   });
 

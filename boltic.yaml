@@ -13,7 +13,7 @@ language: nodejs/24
 region: asia-south1
 
 serverlessConfig:
-  serverlessId: "e33b3abb-8cdc-4eb8-ae0b-ad5dca9c40be"
+  serverlessId: "f562c331-309c-45ba-9387-0d626229163b"
   Name: "Fynd-Returns"
   Runtime: "git"
   Env: {}

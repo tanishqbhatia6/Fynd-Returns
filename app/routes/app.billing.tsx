@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { Form, Link, redirect, useLoaderData } from "react-router";
+import { Link, redirect, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import { AppPage } from "../components/AppPage";
 import {
@@ -204,7 +204,7 @@ export default function BillingPage() {
                 Shopify handles paid-plan approval; no credit card is entered into this app.
               </p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-                <Form method="post">
+                <form method="post">
                   <input type="hidden" name="intent" value="select-free-plan" />
                   <button
                     type="submit"
@@ -226,7 +226,7 @@ export default function BillingPage() {
                   >
                     Continue with Free
                   </button>
-                </Form>
+                </form>
                 <a
                   href={upgradeUrl}
                   target="_top"

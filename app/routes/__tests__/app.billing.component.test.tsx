@@ -203,6 +203,11 @@ describe("BillingPage — hasAccess=false branch", () => {
     });
     expect(await findByText("Subscription required")).toBeTruthy();
     expect(container.textContent).toContain("Continue with Free");
+    const freeForm = container.querySelector('form[method="post"]');
+    expect(freeForm).toBeTruthy();
+    expect(freeForm?.querySelector('input[name="intent"]')?.getAttribute("value")).toBe(
+      "select-free-plan",
+    );
     const chooseLink = Array.from(container.querySelectorAll("a")).find((a) =>
       a.textContent?.trim().startsWith("Choose a paid plan"),
     );

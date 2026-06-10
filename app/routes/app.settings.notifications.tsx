@@ -92,7 +92,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     whatsappApiKey: sWa?.whatsappApiKey ? SMTP_PASS_PLACEHOLDER : "",
     whatsappPhoneNumberId: sWa?.whatsappPhoneNumberId ?? "",
     whatsappFromNumber: sWa?.whatsappFromNumber ?? "",
-    portalOtpEmailEnabled: true,
+    portalOtpEmailEnabled: s?.portalOtpEmailEnabled ?? true,
     portalOtpSmsEnabled: true,
     notificationLogs,
     notificationLogFilters,
@@ -195,7 +195,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     })(),
     whatsappPhoneNumberId: String(fd.get("whatsappPhoneNumberId") || "").trim() || null,
     whatsappFromNumber: String(fd.get("whatsappFromNumber") || "").trim() || null,
-    portalOtpEmailEnabled: true,
+    portalOtpEmailEnabled: fd.get("portalOtpEmailEnabled") === "on",
     portalOtpSmsEnabled: true,
   };
 
@@ -468,6 +468,9 @@ export default function Notifications() {
   const [waApiKey, setWaApiKey] = useState(data.whatsappApiKey);
   const [waPhoneNumberId, setWaPhoneNumberId] = useState(data.whatsappPhoneNumberId);
   const [waFromNumber, setWaFromNumber] = useState(data.whatsappFromNumber);
+  const [portalOtpEmailEnabled, setPortalOtpEmailEnabled] = useState(
+    data.portalOtpEmailEnabled,
+  );
 
   const [previewTemplate, setPreviewTemplate] = useState<string | null>(null);
 
@@ -1949,12 +1952,15 @@ export default function Notifications() {
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <Toggle
                 name="portalOtpEmailEnabled"
-                checked={true}
-                onChange={() => {}}
+                checked={portalOtpEmailEnabled}
+                onChange={setPortalOtpEmailEnabled}
                 label="Email OTP verification"
-                description="Required for email lookups before return or order details are shown"
+                description={
+                  portalOtpEmailEnabled
+                    ? "Required for email lookups before return or order details are shown"
+                    : "Disabled: email lookups can show matching portal results without a one-time code"
+                }
                 accentColor="#6366f1"
-                disabled
                 icon={
                   <svg
                     width="18"
@@ -1999,15 +2005,16 @@ export default function Notifications() {
               style={{
                 marginTop: 12,
                 padding: "10px 14px",
-                background: "#ECFDF5",
+                background: portalOtpEmailEnabled ? "#ECFDF5" : "#FEF3C7",
                 borderRadius: "var(--rpm-radius-sm)",
                 fontSize: 12,
-                color: "#065F46",
+                color: portalOtpEmailEnabled ? "#065F46" : "#92400E",
                 lineHeight: 1.6,
               }}
             >
-              Customer verification is locked on for production safety. Portal lookup APIs require a
-              verified session before returning order, customer, or return details.
+              {portalOtpEmailEnabled
+                ? "Email verification is required before returning portal order or return details. Phone lookup remains fail-closed until SMS/WhatsApp OTP delivery is implemented."
+                : "Email verification is disabled. Customers who know a matching email or order value can view portal results without a one-time code. Use this only if you accept that access model."}
             </div>
           </div>
 

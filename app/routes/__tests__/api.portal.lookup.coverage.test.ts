@@ -18,8 +18,7 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
  *   - sendOtpEmail failure fails closed with an actionable error.
  *   - lookupValueHash is the SHA-256 of the lowercase-trimmed contact, so
  *     case variants share the same lockout bucket.
- *   - OTP gate skipped when only the unrelated channel is enabled
- *     (e.g. portalOtpSmsEnabled but lookupType=email).
+ *   - OTP gate skipped when email OTP is explicitly disabled by the merchant.
  *
  * No assertions overlap with the existing api.portal.lookup.test.ts file
  * — these specifically target the states the original tests left
@@ -188,7 +187,7 @@ describe("OTP gate (phone / SMS channel)", () => {
     expect(prismaMock.lookupSession.create).not.toHaveBeenCalled();
   });
 
-  it("gates email lookups by default even when only SMS was explicitly enabled", async () => {
+  it("skips the email OTP gate when the merchant disables email verification", async () => {
     prismaMock.shop.findUnique.mockResolvedValue(
       baseShop({ portalOtpSmsEnabled: true, portalOtpEmailEnabled: false }),
     );
@@ -204,9 +203,10 @@ describe("OTP gate (phone / SMS channel)", () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.requiresOtp).toBe(true);
-    expect(body.sessionId).toBeTruthy();
-    expect(prismaMock.lookupSession.create).toHaveBeenCalled();
+    expect(body.requiresOtp).toBeUndefined();
+    expect(body.sessionId).toBeUndefined();
+    expect(prismaMock.lookupSession.create).not.toHaveBeenCalled();
+    expect(sendOtpEmailMock).not.toHaveBeenCalled();
   });
 
   it("does NOT gate non-OTP lookup types (order_no) even with email gate on", async () => {

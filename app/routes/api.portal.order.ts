@@ -157,6 +157,14 @@ async function requireVerifiedOrderCustomer(args: {
     );
   }
 
+  const settings = await prisma.shopSettings.findUnique({
+    where: { shopId: args.shopId },
+    select: { portalOtpEmailEnabled: true },
+  });
+  if (settings?.portalOtpEmailEnabled === false) {
+    return null;
+  }
+
   const emailContact = contacts.find((contact) => contact.type === "email");
   if (!emailContact) {
     return Response.json(

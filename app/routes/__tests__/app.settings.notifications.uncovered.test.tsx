@@ -905,12 +905,12 @@ describe("notifications – WhatsApp + OTP", () => {
     expect(container.querySelector("input[type='hidden'][name='whatsappApiKey']")).toBeTruthy();
   });
 
-  it("Email OTP verification is locked on", async () => {
+  it("Email OTP verification can be enabled by the merchant", async () => {
     const { container } = renderBase();
     await waitForRender(container);
     const cb = container.querySelector("input[name='portalOtpEmailEnabled']") as HTMLInputElement;
-    expect(cb.checked).toBe(true);
-    expect(cb.disabled).toBe(true);
+    expect(cb.checked).toBe(false);
+    expect(cb.disabled).toBe(false);
     await act(async () => {
       fireEvent.click(cb);
     });
@@ -972,12 +972,12 @@ describe("notifications – pre-enabled WhatsApp & log filters", () => {
     expect(container.textContent).toContain("+888");
   });
 
-  it("portalOtpEmailEnabled remains enabled for pre-enabled shops", async () => {
+  it("portalOtpEmailEnabled renders enabled and editable for pre-enabled shops", async () => {
     const { container } = renderBase(waLoaderData);
     await waitForRender(container);
     const cb = container.querySelector("input[name='portalOtpEmailEnabled']") as HTMLInputElement;
     expect(cb.checked).toBe(true);
-    expect(cb.disabled).toBe(true);
+    expect(cb.disabled).toBe(false);
   });
 
   it("portalOtpSmsEnabled remains enabled for pre-enabled shops", async () => {

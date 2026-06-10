@@ -285,14 +285,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // ── OTP gate (secure-by-default) ──
-    // Customer contact lookups are always gated behind verified identity.
+    // Customer contact lookups are gated behind verified identity unless the
+    // merchant explicitly disables email OTP. Phone stays fail-closed until an
+    // actual SMS/WhatsApp OTP delivery path exists.
     // First call (no portalToken): create session + send OTP → return { requiresOtp, sessionId }.
     // Second call (with portalToken): verify session token → proceed to return results.
-    const otpEmailEnabled = true;
+    const otpEmailEnabled = shopRecord.settings?.portalOtpEmailEnabled ?? true;
     const otpSmsEnabled = true;
     const otpRequired =
       (otpEmailEnabled && normalizedLookupType === "email") ||
       (otpSmsEnabled && normalizedLookupType === "phone");
+    const isContactLookup = normalizedLookupType === "email" || normalizedLookupType === "phone";
     let verifiedSessionForNonContactLookup: VerifiedPortalSession | null = null;
 
     if (otpRequired) {
@@ -490,7 +493,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         );
       }
       // Verified — proceed to return results below
-    } else {
+    } else if (!isContactLookup) {
       verifiedSessionForNonContactLookup = await verifyPortalSession(prisma, {
         portalToken,
         sessionId,

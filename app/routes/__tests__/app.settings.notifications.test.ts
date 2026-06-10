@@ -81,6 +81,8 @@ describe("loader", () => {
     expect(data.smtpConfigured).toBe(false);
     expect(data.whatsappEnabled).toBe(false);
     expect(data.whatsappApiKey).toBe("");
+    expect(data.portalOtpEmailEnabled).toBe(true);
+    expect(data.portalOtpSmsEnabled).toBe(true);
     expect(data.emailTemplatesJson).toEqual({});
     expect(data.notificationLogs).toEqual([]);
   });
@@ -119,6 +121,21 @@ describe("loader", () => {
     } as never);
     expect(data.whatsappApiKey).toBe(SMTP_PASS_PLACEHOLDER);
     expect(data.whatsappEnabled).toBe(true);
+  });
+
+  it("returns the saved email OTP setting while keeping phone OTP locked on", async () => {
+    findOrCreateShopMock.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { portalOtpEmailEnabled: false, portalOtpSmsEnabled: false },
+    });
+    prismaMock.notificationLog.findMany.mockResolvedValueOnce([]);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
+    expect(data.portalOtpEmailEnabled).toBe(false);
+    expect(data.portalOtpSmsEnabled).toBe(true);
   });
 
   it("parses emailTemplatesJson; tolerates malformed JSON", async () => {
@@ -193,6 +210,20 @@ describe("action — save", () => {
     expect(upsertArg.update.smtpSecure).toBe(true);
     expect(upsertArg.update.notificationNewReturn).toBe(true);
     expect(upsertArg.update.notificationApproved).toBe(false);
+    expect(upsertArg.update.portalOtpEmailEnabled).toBe(false);
+    expect(upsertArg.update.portalOtpSmsEnabled).toBe(true);
+  });
+
+  it("persists email OTP enabled when the toggle is submitted", async () => {
+    findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1", settings: null });
+    await action({
+      request: formReq({ portalOtpEmailEnabled: "on" }),
+      params: {},
+      context: {},
+    } as never);
+    const upsertArg = prismaMock.shopSettings.upsert.mock.calls[0][0];
+    expect(upsertArg.update.portalOtpEmailEnabled).toBe(true);
+    expect(upsertArg.update.portalOtpSmsEnabled).toBe(true);
   });
 
   it("preserves existing encrypted smtpPass when placeholder is submitted", async () => {

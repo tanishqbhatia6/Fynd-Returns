@@ -16,7 +16,6 @@ serverlessConfig:
   serverlessId: "f562c331-309c-45ba-9387-0d626229163b"
   Name: "Fynd-Returns"
   Runtime: "git"
-  Env: {}
   PortMap:
     - Name: "http"
       Port: 8080

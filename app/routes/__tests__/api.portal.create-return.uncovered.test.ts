@@ -40,6 +40,7 @@ const {
   nextReturnIdCounterMock,
   normalizeSourceChannelMock,
   scheduleRetryMock,
+  verifyPortalSessionMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   shopifyModuleMock: {
@@ -70,6 +71,14 @@ const {
   nextReturnIdCounterMock: vi.fn().mockResolvedValue(1),
   normalizeSourceChannelMock: vi.fn((x: string) => x),
   scheduleRetryMock: vi.fn().mockResolvedValue(undefined),
+  verifyPortalSessionMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "shopper@example.com",
+    matchedReturnIds: null,
+  })),
 }));
 
 Object.assign(prismaMock, createPrismaMock());
@@ -93,14 +102,7 @@ vi.mock("../../lib/rate-limit.server", () => ({
 }));
 vi.mock("../../lib/portal-auth.server", () => ({
   verifyPortalCsrfToken: verifyPortalCsrfMock,
-  verifyPortalSession: vi.fn(async () => ({
-    id: "session-1",
-    shopId: "shop-1",
-    lookupType: "email",
-    lookupValueHash: "hash",
-    lookupValueNorm: "shopper@example.com",
-    matchedReturnIds: null,
-  })),
+  verifyPortalSession: verifyPortalSessionMock,
   hashLookupValue: vi.fn(() => "hash"),
 }));
 vi.mock("../../lib/shopify-admin.server", () => ({
@@ -213,6 +215,14 @@ beforeEach(() => {
   checkRateLimitMock
     .mockReset()
     .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  verifyPortalSessionMock.mockReset().mockResolvedValue({
+    id: "session-1",
+    shopId: "shop-1",
+    lookupType: "email",
+    lookupValueHash: "hash",
+    lookupValueNorm: "shopper@example.com",
+    matchedReturnIds: null,
+  });
   verifyPortalCsrfMock.mockReset().mockReturnValue(true);
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
   fetchOrderMock.mockReset().mockResolvedValue({
@@ -277,6 +287,56 @@ describe("notification failure (.catch swallowed)", () => {
     await new Promise((r) => setImmediate(r));
     expect(sendNewReturnNotificationMock).toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+});
+
+describe("portal OTP disabled submission", () => {
+  it("allows automatic create-return without a portal token when email OTP is disabled and order contact matches", async () => {
+    verifyPortalSessionMock.mockResolvedValueOnce(null);
+    prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop({ portalOtpEmailEnabled: false }));
+    prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
+    const createdRc = {
+      id: "rc-no-otp-1",
+      status: "initiated",
+      createdAt: new Date(),
+      items: [],
+      returnRequestNo: "R-1001",
+    };
+    (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
+
+    const res = await action({
+      request: jsonReq(happyBody({ portalToken: undefined, sessionId: undefined })),
+      params: {},
+      context: {},
+    } as never);
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.returnCase.create).toHaveBeenCalled();
+  });
+
+  it("rejects no-token create-return when the submitted contact does not match the live order", async () => {
+    verifyPortalSessionMock.mockResolvedValueOnce(null);
+    prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop({ portalOtpEmailEnabled: false }));
+    prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
+    fetchOrderMock.mockResolvedValueOnce({
+      id: "gid://shopify/Order/1",
+      email: "different@example.com",
+      displayFulfillmentStatus: "FULFILLED",
+      displayFinancialStatus: "PAID",
+      sourceName: "web",
+      affiliateOrderId: null,
+      lineItems: [],
+    });
+
+    const res = await action({
+      request: jsonReq(happyBody({ portalToken: undefined, sessionId: undefined })),
+      params: {},
+      context: {},
+    } as never);
+
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toMatch(/contact does not match/i);
+    expect(prismaMock.returnCase.create).not.toHaveBeenCalled();
   });
 });
 

@@ -254,6 +254,43 @@ function portalSessionMatchesContact(
   return false;
 }
 
+function canSubmitWithoutPortalVerification(
+  settings:
+    | {
+        portalOtpEmailEnabled?: boolean | null;
+        portalOtpSmsEnabled?: boolean | null;
+      }
+    | null
+    | undefined,
+  contacts: { email?: string | null; phone?: string | null },
+): boolean {
+  const email = contacts.email?.trim().toLowerCase();
+  const phone = contacts.phone?.trim().replace(/[^\d+]/g, "");
+  if (email) return settings?.portalOtpEmailEnabled === false;
+  if (phone) return settings?.portalOtpSmsEnabled === false;
+  return false;
+}
+
+function submittedContactMatchesOrder(
+  order: {
+    email?: string | null;
+    phone?: string | null;
+    shippingAddress?: { phone?: string | null } | null;
+  },
+  contacts: { email?: string | null; phone?: string | null },
+): boolean {
+  const submittedEmail = contacts.email?.trim().toLowerCase();
+  const orderEmail = order.email?.trim().toLowerCase();
+  if (submittedEmail && orderEmail) return submittedEmail === orderEmail;
+
+  const submittedPhone = contacts.phone?.trim().replace(/[^\d+]/g, "");
+  if (!submittedPhone) return false;
+  const orderPhones = [order.phone, order.shippingAddress?.phone]
+    .map((phone) => phone?.trim().replace(/[^\d+]/g, ""))
+    .filter(Boolean);
+  return orderPhones.includes(submittedPhone);
+}
+
 function fraudLevel(score: number): "low" | "medium" | "high" | "critical" {
   if (score >= 81) return "critical";
   if (score >= 61) return "high";
@@ -594,7 +631,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       shopId: shopRecord.id,
       allowedLookupTypes: ["email", "phone"],
     });
-    if (!verifiedPortalSession) {
+    const canSubmitWithoutVerification = canSubmitWithoutPortalVerification(settings, {
+      email: customerEmail ?? null,
+      phone: customerPhone,
+    });
+    if (!verifiedPortalSession && !canSubmitWithoutVerification) {
       return withCors(
         Response.json(
           { error: "Verify your order contact before submitting a return." },
@@ -604,6 +645,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
     }
     if (
+      verifiedPortalSession &&
       !portalSessionMatchesContact(verifiedPortalSession, {
         email: customerEmail ?? null,
         phone: customerPhone,
@@ -1454,6 +1496,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         liveOrderForValidation = liveOrder;
         if (liveOrder) {
           if (
+            verifiedPortalSession &&
             !portalSessionMatchesContact(verifiedPortalSession, {
               email: liveOrder.email ?? null,
               phone: liveOrder.phone ?? liveOrder.shippingAddress?.phone ?? null,
@@ -1462,6 +1505,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             return withCors(
               Response.json(
                 { error: "Verified customer does not match this order." },
+                { status: 403 },
+              ),
+              request,
+            );
+          }
+          if (
+            !verifiedPortalSession &&
+            !submittedContactMatchesOrder(liveOrder, {
+              email: customerEmail ?? null,
+              phone: customerPhone,
+            })
+          ) {
+            return withCors(
+              Response.json(
+                { error: "Submitted customer contact does not match this order." },
                 { status: 403 },
               ),
               request,
@@ -1504,12 +1562,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               request,
             );
           }
+        } else if (!verifiedPortalSession) {
+          return withCors(
+            Response.json(
+              { error: "Could not verify this order before submitting the return." },
+              { status: 403 },
+            ),
+            request,
+          );
         }
       } catch (fulfillErr) {
         portalLogger.warn(
           { err: fulfillErr, shopDomain },
           "Portal create-return fulfillment status check failed",
         );
+        if (!verifiedPortalSession) {
+          return withCors(
+            Response.json(
+              { error: "Could not verify this order before submitting the return." },
+              { status: 403 },
+            ),
+            request,
+          );
+        }
         // If we can't verify, fall through — the order lookup would have already blocked in the portal
       }
     }

@@ -1,19 +1,33 @@
-app: "Fynd-Returns"
-region: "asia-south1"
-handler: "handler.handler"
-language: "nodejs/24"
+# ============================================================================
+# Boltic Configuration File - fynd-returns
+# ============================================================================
+#
+# This file is synced with the Boltic UI. Changes here affect the deployed app.
+#
+
+app: fynd-returns
+build:
+  builtin: dockerfile
+  ignorefile: .dockerignore
+language: nodejs/24
+region: asia-south1
 
 serverlessConfig:
   serverlessId: "f562c331-309c-45ba-9387-0d626229163b"
   Name: "Fynd-Returns"
   Runtime: "git"
+  Env: {}
+  PortMap:
+    - Name: "http"
+      Port: 8080
+      Protocol: "http"
   Scaling:
     AutoStop: false
     Min: 1
     Max: 1
     MaxIdleTime: 300
   Resources:
-    CPU: 0.1
-    MemoryMB: 128
-    MemoryMaxMB: 128
-  Timeout: 60
+    CPU: 0.5
+    MemoryMB: 512
+    MemoryMaxMB: 512
+  Timeout: 120

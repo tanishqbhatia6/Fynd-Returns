@@ -191,7 +191,33 @@ describe("app.billing loader", () => {
 });
 
 describe("app.billing action", () => {
-  it("records merchant free-plan selection and redirects to /app", async () => {
+  it("records merchant free-plan selection and redirects back to embedded /app", async () => {
+    const fd = new FormData();
+    fd.set("intent", "select-free-plan");
+    const req = new Request(
+      "https://app.example/app/billing?embedded=1&shop=store.myshopify.com&host=abc",
+      {
+        method: "POST",
+        body: fd,
+      },
+    );
+
+    let thrown: unknown;
+    try {
+      await action({ request: req, params: {}, context: {} } as never);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Response);
+    expect((thrown as Response).status).toBe(302);
+    expect((thrown as Response).headers.get("Location")).toBe(
+      "/app?embedded=1&shop=store.myshopify.com&host=abc",
+    );
+    expect(selectFreeBillingPlanMock).toHaveBeenCalledWith("store.myshopify.com");
+  });
+
+  it("rebuilds embedded context on free-plan redirect when Shopify only sends the session", async () => {
     const fd = new FormData();
     fd.set("intent", "select-free-plan");
     const req = new Request("https://app.example/app/billing", {
@@ -199,9 +225,19 @@ describe("app.billing action", () => {
       body: fd,
     });
 
-    await expect(action({ request: req, params: {}, context: {} } as never)).rejects.toMatchObject({
-      status: 302,
-    });
+    let thrown: unknown;
+    try {
+      await action({ request: req, params: {}, context: {} } as never);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Response);
+    const location = (thrown as Response).headers.get("Location") ?? "";
+    expect(location).toContain("/app?");
+    expect(location).toContain("shop=store.myshopify.com");
+    expect(location).toContain("host=YWRtaW4uc2hvcGlmeS5jb20vc3RvcmUvc3RvcmU");
+    expect(location).toContain("embedded=1");
     expect(selectFreeBillingPlanMock).toHaveBeenCalledWith("store.myshopify.com");
   });
 

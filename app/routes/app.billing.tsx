@@ -9,6 +9,10 @@ import {
   isSuperAdmin,
   selectFreeBillingPlan,
 } from "../lib/billing.server";
+import {
+  buildAdminHostParam,
+  getEmbeddedAdminLaunchParams,
+} from "../lib/shopify-admin-launch.server";
 
 /**
  * Billing status page.
@@ -55,8 +59,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   await selectFreeBillingPlan(session.shop);
-  throw redirect("/app");
+  throw redirect(getPostSelectionRedirect(request, session.shop));
 };
+
+function getPostSelectionRedirect(request: Request, shopDomain: string): string {
+  const url = new URL(request.url);
+  const params =
+    getEmbeddedAdminLaunchParams(request, url.searchParams) ??
+    new URLSearchParams(url.searchParams);
+  const hasSignedQuery = params.has("hmac") || params.has("signature");
+
+  if (!params.get("shop")) {
+    params.set("shop", shopDomain);
+  }
+  if (!params.get("host") && !hasSignedQuery) {
+    params.set("host", buildAdminHostParam(shopDomain));
+  }
+  if (!params.get("embedded") && !hasSignedQuery) {
+    params.set("embedded", "1");
+  }
+
+  const search = params.toString();
+  return search ? `/app?${search}` : "/app";
+}
 
 export default function BillingPage() {
   const { status, upgradeUrl, mode, isSuperadmin } = useLoaderData<typeof loader>();

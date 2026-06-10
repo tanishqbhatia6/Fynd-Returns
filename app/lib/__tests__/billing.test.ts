@@ -22,6 +22,7 @@ const { prismaMock } = vi.hoisted(() => ({
       findUnique: vi.fn(),
     },
     shopSettings: {
+      upsert: vi.fn(),
       update: vi.fn().mockResolvedValue({}),
     },
   },
@@ -36,11 +37,13 @@ import {
   getManagedPricingUpgradeUrl,
   fetchSubscriptionSnapshot,
   setBillingPlanOverride,
+  selectFreeBillingPlan,
 } from "../billing.server";
 
 beforeEach(() => {
   prismaMock.shop.upsert.mockReset();
   prismaMock.shop.findUnique.mockReset();
+  prismaMock.shopSettings.upsert.mockReset().mockResolvedValue({ id: "settings-created" });
   prismaMock.shopSettings.update.mockReset().mockResolvedValue({});
 });
 
@@ -382,6 +385,62 @@ describe("getBillingStatus", () => {
         where: { shopDomain: "new.myshopify.com" },
       }),
     );
+  });
+
+  it("creates missing settings for an existing shop before evaluating billing", async () => {
+    process.env.APP_BILLING_MODE = "prod";
+    prismaMock.shop.upsert.mockResolvedValue({
+      id: "existing-shop",
+      shopDomain: "existing.myshopify.com",
+      settings: null,
+    });
+    prismaMock.shopSettings.upsert.mockResolvedValue({
+      id: "settings-created",
+      billingPlanOverride: null,
+      billingPlanSelection: "free",
+      billingPlanSelectionAt: new Date("2026-06-10T10:00:00.000Z"),
+      subscriptionStatus: null,
+      subscriptionName: null,
+      subscriptionCheckedAt: null,
+    });
+
+    const status = await getBillingStatus("existing.myshopify.com", null);
+
+    expect(prismaMock.shopSettings.upsert).toHaveBeenCalledWith({
+      where: { shopId: "existing-shop" },
+      create: { shopId: "existing-shop" },
+      update: {},
+    });
+    expect(status.hasAccess).toBe(true);
+    expect(status.reason).toBe("free_plan_selected");
+  });
+});
+
+/* ── selectFreeBillingPlan ────────────────────────────────────────── */
+
+describe("selectFreeBillingPlan", () => {
+  it("creates missing settings before recording a merchant free-plan selection", async () => {
+    prismaMock.shop.upsert.mockResolvedValue({
+      id: "existing-shop",
+      shopDomain: "store.myshopify.com",
+      settings: null,
+    });
+    prismaMock.shopSettings.upsert.mockResolvedValue({ id: "settings-created" });
+
+    await selectFreeBillingPlan("store.myshopify.com");
+
+    expect(prismaMock.shopSettings.upsert).toHaveBeenCalledWith({
+      where: { shopId: "existing-shop" },
+      create: { shopId: "existing-shop" },
+      update: {},
+    });
+    expect(prismaMock.shopSettings.update).toHaveBeenCalledWith({
+      where: { id: "settings-created" },
+      data: expect.objectContaining({
+        billingPlanSelection: "free",
+        billingPlanSelectionAt: expect.any(Date),
+      }),
+    });
   });
 });
 

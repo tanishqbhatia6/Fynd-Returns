@@ -8,8 +8,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
  *
  *   1. fetchSubscriptionSnapshot — empty `data` object so the
  *      `?? []` fallback for activeSubscriptions executes.
- *   2. getBillingStatus — admin present but settings is null so the
- *      `if (cached)` persistence branch is skipped.
+ *   2. getBillingStatus — existing shop with settings null is repaired
+ *      before subscription cache persistence.
  *   3. setBillingPlanOverride — empty-string reason exercises the
  *      `reason || null` fallback.
  */
@@ -21,6 +21,7 @@ const { prismaMock } = vi.hoisted(() => ({
       findUnique: vi.fn(),
     },
     shopSettings: {
+      upsert: vi.fn(),
       update: vi.fn().mockResolvedValue({}),
     },
   },
@@ -37,6 +38,7 @@ import {
 beforeEach(() => {
   prismaMock.shop.upsert.mockReset();
   prismaMock.shop.findUnique.mockReset();
+  prismaMock.shopSettings.upsert.mockReset().mockResolvedValue({ id: "settings-created" });
   prismaMock.shopSettings.update.mockReset().mockResolvedValue({});
 });
 
@@ -81,14 +83,21 @@ describe("billing.server — coverage gaps", () => {
     expect(snap).toEqual({ status: "inactive", name: null });
   });
 
-  it("getBillingStatus skips cache write when shop has no settings row", async () => {
+  it("getBillingStatus repairs a shop with no settings row and writes the cache", async () => {
     process.env.APP_BILLING_MODE = "prod";
-    // settings is null on the upserted shop — the `if (cached)` branch
-    // around the shopSettings.update call should NOT fire.
     prismaMock.shop.upsert.mockResolvedValue({
       id: "shop-x",
       shopDomain: "no-settings.myshopify.com",
       settings: null,
+    });
+    prismaMock.shopSettings.upsert.mockResolvedValue({
+      id: "settings-created",
+      billingPlanOverride: null,
+      billingPlanSelection: null,
+      billingPlanSelectionAt: null,
+      subscriptionStatus: null,
+      subscriptionName: null,
+      subscriptionCheckedAt: null,
     });
     const admin = makeAdmin({
       data: {
@@ -100,7 +109,20 @@ describe("billing.server — coverage gaps", () => {
     const status = await getBillingStatus("no-settings.myshopify.com", admin);
     expect(status.hasAccess).toBe(true);
     expect(status.reason).toBe("subscription_active");
-    expect(prismaMock.shopSettings.update).not.toHaveBeenCalled();
+    expect(prismaMock.shopSettings.upsert).toHaveBeenCalledWith({
+      where: { shopId: "shop-x" },
+      create: { shopId: "shop-x" },
+      update: {},
+    });
+    expect(prismaMock.shopSettings.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "settings-created" },
+        data: expect.objectContaining({
+          subscriptionStatus: "active",
+          subscriptionName: "Pro",
+        }),
+      }),
+    );
   });
 
   it("setBillingPlanOverride coerces empty-string reason to null", async () => {

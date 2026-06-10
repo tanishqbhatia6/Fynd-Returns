@@ -32,6 +32,7 @@ const { prismaMock } = vi.hoisted(() => ({
       findUnique: vi.fn(),
     },
     shopSettings: {
+      upsert: vi.fn(),
       update: vi.fn().mockResolvedValue({}),
     },
   },
@@ -49,6 +50,7 @@ import {
 beforeEach(() => {
   prismaMock.shop.upsert.mockReset();
   prismaMock.shop.findUnique.mockReset();
+  prismaMock.shopSettings.upsert.mockReset().mockResolvedValue({ id: "settings-created" });
   prismaMock.shopSettings.update.mockReset().mockResolvedValue({});
 });
 

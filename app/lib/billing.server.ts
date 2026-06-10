@@ -184,6 +184,33 @@ export async function fetchSubscriptionSnapshot(
 
 const SNAPSHOT_TTL_MS = 10 * 60 * 1000; // refresh subscription cache every 10 min
 
+function normalizeShopDomain(shopDomain: string): string {
+  return shopDomain.trim().toLowerCase().replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+}
+
+async function findOrCreateBillingShop(shopDomain: string) {
+  const normalizedShopDomain = normalizeShopDomain(shopDomain);
+  const shop = await prisma.shop.upsert({
+    where: { shopDomain: normalizedShopDomain },
+    create: {
+      shopDomain: normalizedShopDomain,
+      settings: { create: {} },
+    },
+    update: {},
+    include: { settings: true },
+  });
+
+  if (shop.settings) return shop;
+
+  const settings = await prisma.shopSettings.upsert({
+    where: { shopId: shop.id },
+    create: { shopId: shop.id },
+    update: {},
+  });
+
+  return { ...shop, settings };
+}
+
 /**
  * Evaluate the full billing status for a shop. This is the single
  * entry point used by the app.tsx loader gate and the /app/billing
@@ -200,16 +227,9 @@ export async function getBillingStatus(
 ): Promise<BillingStatus> {
   const mode = getBillingMode();
 
-  // Load the shop + settings. Create if missing (first request after install).
-  const shop = await prisma.shop.upsert({
-    where: { shopDomain },
-    create: {
-      shopDomain,
-      settings: { create: {} },
-    },
-    update: {},
-    include: { settings: true },
-  });
+  // Load the shop + settings. Create either row if missing (first request
+  // after install, or old installs created before ShopSettings existed).
+  const shop = await findOrCreateBillingShop(shopDomain);
   const override = (shop.settings?.billingPlanOverride as BillingPlanOverride) ?? null;
   const selectedPlan = shop.settings?.billingPlanSelection ?? null;
 
@@ -351,8 +371,9 @@ export async function setBillingPlanOverride(
   reason: string,
   adminEmail: string,
 ): Promise<void> {
+  const normalizedShopDomain = normalizeShopDomain(shopDomain);
   const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
+    where: { shopDomain: normalizedShopDomain },
     include: { settings: true },
   });
   if (!shop?.settings) return;
@@ -373,17 +394,7 @@ export async function setBillingPlanOverride(
  * chose Free" from "internal user granted free access".
  */
 export async function selectFreeBillingPlan(shopDomain: string): Promise<void> {
-  const shop = await prisma.shop.upsert({
-    where: { shopDomain },
-    create: {
-      shopDomain,
-      settings: { create: {} },
-    },
-    update: {},
-    include: { settings: true },
-  });
-
-  if (!shop.settings) return;
+  const shop = await findOrCreateBillingShop(shopDomain);
 
   await prisma.shopSettings.update({
     where: { id: shop.settings.id },

@@ -123,7 +123,7 @@ describe("loader", () => {
     expect(data.whatsappEnabled).toBe(true);
   });
 
-  it("returns the saved email OTP setting while keeping phone OTP locked on", async () => {
+  it("returns the saved OTP settings", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({
       id: "shop-1",
       settings: { portalOtpEmailEnabled: false, portalOtpSmsEnabled: false },
@@ -135,7 +135,7 @@ describe("loader", () => {
       context: {},
     } as never);
     expect(data.portalOtpEmailEnabled).toBe(false);
-    expect(data.portalOtpSmsEnabled).toBe(true);
+    expect(data.portalOtpSmsEnabled).toBe(false);
   });
 
   it("parses emailTemplatesJson; tolerates malformed JSON", async () => {
@@ -211,13 +211,13 @@ describe("action — save", () => {
     expect(upsertArg.update.notificationNewReturn).toBe(true);
     expect(upsertArg.update.notificationApproved).toBe(false);
     expect(upsertArg.update.portalOtpEmailEnabled).toBe(false);
-    expect(upsertArg.update.portalOtpSmsEnabled).toBe(true);
+    expect(upsertArg.update.portalOtpSmsEnabled).toBe(false);
   });
 
-  it("persists email OTP enabled when the toggle is submitted", async () => {
+  it("persists OTP toggles when submitted", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1", settings: null });
     await action({
-      request: formReq({ portalOtpEmailEnabled: "on" }),
+      request: formReq({ portalOtpEmailEnabled: "on", portalOtpSmsEnabled: "on" }),
       params: {},
       context: {},
     } as never);

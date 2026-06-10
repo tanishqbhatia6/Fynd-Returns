@@ -285,13 +285,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // ── OTP gate (secure-by-default) ──
-    // Customer contact lookups are gated behind verified identity unless the
-    // merchant explicitly disables email OTP. Phone stays fail-closed until an
-    // actual SMS/WhatsApp OTP delivery path exists.
+    // Customer contact lookups are gated behind verified identity only for the
+    // channels the merchant has explicitly enabled.
     // First call (no portalToken): create session + send OTP → return { requiresOtp, sessionId }.
     // Second call (with portalToken): verify session token → proceed to return results.
     const otpEmailEnabled = shopRecord.settings?.portalOtpEmailEnabled ?? true;
-    const otpSmsEnabled = true;
+    const otpSmsEnabled = shopRecord.settings?.portalOtpSmsEnabled ?? true;
     const otpRequired =
       (otpEmailEnabled && normalizedLookupType === "email") ||
       (otpSmsEnabled && normalizedLookupType === "phone");

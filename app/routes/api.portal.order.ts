@@ -159,13 +159,16 @@ async function requireVerifiedOrderCustomer(args: {
 
   const settings = await prisma.shopSettings.findUnique({
     where: { shopId: args.shopId },
-    select: { portalOtpEmailEnabled: true },
+    select: { portalOtpEmailEnabled: true, portalOtpSmsEnabled: true },
   });
-  if (settings?.portalOtpEmailEnabled === false) {
+  const emailOtpEnabled = settings?.portalOtpEmailEnabled ?? true;
+  const phoneOtpEnabled = settings?.portalOtpSmsEnabled ?? true;
+  const emailContact = contacts.find((contact) => contact.type === "email");
+  const phoneContact = contacts.find((contact) => contact.type === "phone");
+  if ((emailContact && !emailOtpEnabled) || (!emailContact && phoneContact && !phoneOtpEnabled)) {
     return null;
   }
 
-  const emailContact = contacts.find((contact) => contact.type === "email");
   if (!emailContact) {
     return Response.json(
       { error: "Email verification is required before viewing this order." },

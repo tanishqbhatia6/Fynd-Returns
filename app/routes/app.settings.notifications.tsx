@@ -93,7 +93,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     whatsappPhoneNumberId: sWa?.whatsappPhoneNumberId ?? "",
     whatsappFromNumber: sWa?.whatsappFromNumber ?? "",
     portalOtpEmailEnabled: s?.portalOtpEmailEnabled ?? true,
-    portalOtpSmsEnabled: true,
+    portalOtpSmsEnabled: s?.portalOtpSmsEnabled ?? true,
     notificationLogs,
     notificationLogFilters,
   };
@@ -196,7 +196,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     whatsappPhoneNumberId: String(fd.get("whatsappPhoneNumberId") || "").trim() || null,
     whatsappFromNumber: String(fd.get("whatsappFromNumber") || "").trim() || null,
     portalOtpEmailEnabled: fd.get("portalOtpEmailEnabled") === "on",
-    portalOtpSmsEnabled: true,
+    portalOtpSmsEnabled: fd.get("portalOtpSmsEnabled") === "on",
   };
 
   try {
@@ -471,6 +471,7 @@ export default function Notifications() {
   const [portalOtpEmailEnabled, setPortalOtpEmailEnabled] = useState(
     data.portalOtpEmailEnabled,
   );
+  const [portalOtpSmsEnabled, setPortalOtpSmsEnabled] = useState(data.portalOtpSmsEnabled);
 
   const [previewTemplate, setPreviewTemplate] = useState<string | null>(null);
 
@@ -631,6 +632,7 @@ export default function Notifications() {
   const templatesSaved = templateFetcher.data && "templatesSaved" in templateFetcher.data;
   const testResult = testFetcher.data?.testResult;
   const smtpFilled = !!(smtpHost && smtpUser && smtpPass);
+  const portalOtpDisabled = !portalOtpEmailEnabled && !portalOtpSmsEnabled;
 
   const handleTestSmtp = useCallback(() => {
     const fd = new FormData();
@@ -745,6 +747,107 @@ export default function Notifications() {
         <saveFetcher.Form method="post">
           <input type="hidden" name="intent" value="save" />
 
+          {/* ────── Customer Portal Access ────── */}
+          <div
+            style={{
+              background: "var(--rpm-surface)",
+              border: "var(--rpm-border)",
+              borderRadius: "var(--rpm-radius-lg)",
+              padding: "24px 28px",
+              marginBottom: 20,
+            }}
+          >
+            <SectionHeader
+              icon={
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <path d="M9 12l2 2 4-4" />
+                </svg>
+              }
+              title="Customer Portal Access"
+              subtitle="Control whether customers need a one-time code before seeing return or order results."
+            />
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <Toggle
+                name="portalOtpEmailEnabled"
+                checked={portalOtpEmailEnabled}
+                onChange={setPortalOtpEmailEnabled}
+                label="Require email OTP"
+                description={
+                  portalOtpEmailEnabled
+                    ? "Email lookups send a one-time code before portal results are shown."
+                    : "Email lookups show matching portal results without a one-time code."
+                }
+                accentColor="#6366f1"
+                icon={
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <polyline points="22,7 12,13 2,7" />
+                  </svg>
+                }
+              />
+              <Toggle
+                name="portalOtpSmsEnabled"
+                checked={portalOtpSmsEnabled}
+                onChange={setPortalOtpSmsEnabled}
+                label="Require phone OTP"
+                description={
+                  portalOtpSmsEnabled
+                    ? "Phone lookups require OTP. Keep this off until SMS/WhatsApp OTP delivery is configured."
+                    : "Phone lookups show matching portal results without a one-time code."
+                }
+                accentColor="#10b981"
+                icon={
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />
+                  </svg>
+                }
+              />
+            </div>
+
+            <div
+              style={{
+                marginTop: 12,
+                padding: "10px 14px",
+                background: portalOtpDisabled ? "#FEF3C7" : "#ECFDF5",
+                borderRadius: "var(--rpm-radius-sm)",
+                fontSize: 12,
+                color: portalOtpDisabled ? "#92400E" : "#065F46",
+                lineHeight: 1.6,
+              }}
+            >
+              {portalOtpDisabled
+                ? "Customer OTP verification is disabled. Anyone who knows a matching email, phone, or order value can view portal results. This removes the SMTP dependency for portal verification."
+                : "Only the enabled channels require a one-time code. Disable both toggles if you do not want portal OTP verification."}
+            </div>
+          </div>
+
           {/* ────── SMTP Configuration ────── */}
           <div
             style={{
@@ -769,7 +872,7 @@ export default function Notifications() {
                 </svg>
               }
               title="Email Server (SMTP)"
-              subtitle="Configure your SMTP server to send email notifications directly from your domain."
+              subtitle="Optional. Required only when you send email notifications or require email OTP."
               badge={
                 smtpFilled ? (
                   <span
@@ -813,7 +916,6 @@ export default function Notifications() {
                 value={smtpHost}
                 onChange={setSmtpHost}
                 placeholder="smtp.gmail.com"
-                required
                 half
               />
               <Field
@@ -831,7 +933,6 @@ export default function Notifications() {
                 value={smtpUser}
                 onChange={setSmtpUser}
                 placeholder="your@email.com"
-                required
                 half
               />
               <Field
@@ -841,7 +942,6 @@ export default function Notifications() {
                 onChange={setSmtpPass}
                 type="password"
                 placeholder="App password or SMTP key"
-                required
                 half
               />
               <Field
@@ -1929,93 +2029,6 @@ export default function Notifications() {
                 <input type="hidden" name="whatsappFromNumber" value={waFromNumber} />
               </div>
             )}
-          </div>
-
-          {/* ────── Portal Verification (OTP) ────── */}
-          <div
-            style={{
-              background: "var(--rpm-surface)",
-              border: "var(--rpm-border)",
-              borderRadius: "var(--rpm-radius)",
-              padding: "20px 24px",
-            }}
-          >
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>
-                Portal Verification (OTP)
-              </div>
-              <div style={{ fontSize: 12, color: "var(--rpm-text-muted)" }}>
-                Require customers to verify their identity via a one-time code before viewing return
-                results on the portal
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <Toggle
-                name="portalOtpEmailEnabled"
-                checked={portalOtpEmailEnabled}
-                onChange={setPortalOtpEmailEnabled}
-                label="Email OTP verification"
-                description={
-                  portalOtpEmailEnabled
-                    ? "Required for email lookups before return or order details are shown"
-                    : "Disabled: email lookups can show matching portal results without a one-time code"
-                }
-                accentColor="#6366f1"
-                icon={
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="2" y="4" width="20" height="16" rx="2" />
-                    <polyline points="22,7 12,13 2,7" />
-                  </svg>
-                }
-              />
-              <Toggle
-                name="portalOtpSmsEnabled"
-                checked={true}
-                onChange={() => {}}
-                label="Phone OTP verification"
-                description="Locked on for schema compatibility; phone OTP starts fail closed until SMS/WhatsApp delivery is implemented"
-                accentColor="#10b981"
-                disabled
-                icon={
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />
-                  </svg>
-                }
-              />
-            </div>
-            <div
-              style={{
-                marginTop: 12,
-                padding: "10px 14px",
-                background: portalOtpEmailEnabled ? "#ECFDF5" : "#FEF3C7",
-                borderRadius: "var(--rpm-radius-sm)",
-                fontSize: 12,
-                color: portalOtpEmailEnabled ? "#065F46" : "#92400E",
-                lineHeight: 1.6,
-              }}
-            >
-              {portalOtpEmailEnabled
-                ? "Email verification is required before returning portal order or return details. Phone lookup remains fail-closed until SMS/WhatsApp OTP delivery is implemented."
-                : "Email verification is disabled. Customers who know a matching email or order value can view portal results without a one-time code. Use this only if you accept that access model."}
-            </div>
           </div>
 
           {/* ────── Actions ────── */}

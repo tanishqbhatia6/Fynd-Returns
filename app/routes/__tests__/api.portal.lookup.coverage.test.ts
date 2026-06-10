@@ -6,7 +6,7 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
  * api.portal.lookup — extra coverage for the OTP gate state machine.
  *
  * Complements the main test file by covering branches not exercised there:
- *   - Phone OTP fail-closed gate (counterpart to email OTP coverage above).
+ *   - Phone OTP fail-closed when enabled and skipped when disabled.
  *   - Verified portalToken happy path that flows past the OTP gate to the
  *     full result payload (orders, returns, csrf token, matchedReturnIds
  *     persistence).
@@ -158,7 +158,7 @@ beforeEach(() => {
 // ───────────────────── Phone OTP gate ─────────────────────
 
 describe("OTP gate (phone / SMS channel)", () => {
-  it("fails closed when phone OTP delivery is not configured", async () => {
+  it("fails closed when phone OTP is enabled but delivery is not configured", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpSmsEnabled: true }));
 
     const res = await action({
@@ -173,7 +173,7 @@ describe("OTP gate (phone / SMS channel)", () => {
     expect(prismaMock.lookupSession.create).not.toHaveBeenCalled();
   });
 
-  it("normalises mobile → phone and fails closed without phone OTP delivery", async () => {
+  it("normalises mobile → phone and fails closed when phone OTP is enabled", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpSmsEnabled: true }));
 
     const res = await action({
@@ -185,6 +185,26 @@ describe("OTP gate (phone / SMS channel)", () => {
     const body = await res.json();
     expect(body.phoneVerificationUnavailable).toBe(true);
     expect(prismaMock.lookupSession.create).not.toHaveBeenCalled();
+  });
+
+  it("skips the phone OTP gate when the merchant disables phone verification", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpSmsEnabled: false }));
+    prismaMock.shopSettings.findUnique.mockResolvedValue({ portalLanguage: "en" });
+    prismaMock.session.findFirst.mockResolvedValue({ accessToken: "tok" });
+    prismaMock.returnCase.findMany.mockResolvedValue([]);
+
+    const res = await action({
+      request: jsonReq({ shop: "store", lookupType: "phone", lookupValue: "+15551231234" }),
+      params: {},
+      context: {},
+    } as never);
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.requiresOtp).toBeUndefined();
+    expect(body.phoneVerificationUnavailable).toBeUndefined();
+    expect(prismaMock.lookupSession.create).not.toHaveBeenCalled();
+    expect(sendOtpEmailMock).not.toHaveBeenCalled();
   });
 
   it("skips the email OTP gate when the merchant disables email verification", async () => {

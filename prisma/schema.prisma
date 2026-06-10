@@ -187,7 +187,7 @@ model ShopSettings {
 
   // Portal OTP verification settings
   portalOtpEmailEnabled  Boolean  @default(true) // Require OTP for email-based lookups
-  portalOtpSmsEnabled    Boolean  @default(true) // Locked-on legacy flag; phone OTP starts fail closed until delivery is implemented
+  portalOtpSmsEnabled    Boolean  @default(true) // Require OTP for phone-based lookups
 
   // Scheduled report emails
   scheduledReportEnabled   Boolean  @default(false)

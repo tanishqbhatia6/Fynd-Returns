@@ -1,7 +1,9 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useFetcher, useNavigate } from "react-router";
+import React from "react";
+import { useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { AppPage } from "../components/AppPage";
 import {
   parseChannelPolicies,
   type ChannelPolicy,
@@ -144,7 +146,6 @@ function ToggleSwitch({
 export default function ChannelPoliciesSettings() {
   const { policies } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean; error?: string }>();
-  const navigate = useNavigate();
 
   const getPolicy = (ch: keyof ChannelPoliciesMap): ChannelPolicy => ({
     returnEnabled: policies[ch]?.returnEnabled ?? true,
@@ -178,59 +179,20 @@ export default function ChannelPoliciesSettings() {
     fetcher.submit(formData, { method: "POST" });
   };
 
-  return (
-    <div className="app-page channel-policies-page">
-      <div className="app-page-header">
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button
-            onClick={() => navigate("/app/settings")}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: "4px 6px",
-              borderRadius: 6,
-              color: "var(--rpm-muted)",
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-          <div>
-            <div className="app-page-title">Channel Policies</div>
-            <div className="app-page-subtitle">
-              Configure return eligibility per Shopify sales channel
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="app-btn-primary"
-          style={{
-            padding: "9px 22px",
-            borderRadius: 8,
-            border: "none",
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: isSaving ? "wait" : "pointer",
-            opacity: isSaving ? 0.7 : 1,
-          }}
-        >
-          {isSaving ? "Saving…" : saved ? "Saved ✓" : "Save Changes"}
-        </button>
-      </div>
+  const actions = (
+    <button onClick={handleSave} disabled={isSaving} className="app-btn-primary" type="button">
+      {isSaving ? "Saving..." : saved ? "Saved" : "Save Changes"}
+    </button>
+  );
 
+  return (
+    <AppPage
+      heading="Channel Policies"
+      subtitle="Configure return eligibility per Shopify sales channel"
+      backHref="/app/settings"
+      actions={actions}
+      className="channel-policies-page"
+    >
       {/* v8 ignore start */}
       {/* defensive: fetcher.data.error rarely populated in fixtures */}
       {fetcher.data?.error && (
@@ -453,9 +415,6 @@ export default function ChannelPoliciesSettings() {
           );
         })}
       </div>
-    </div>
+    </AppPage>
   );
 }
-
-// React must be in scope for JSX
-import React from "react";

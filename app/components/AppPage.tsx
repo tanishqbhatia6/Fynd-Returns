@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 
 /**
  * Standard page chrome for every embedded admin route.
@@ -50,9 +50,15 @@ export function AppPage({
   children,
   className,
 }: AppPageProps) {
+  const location = useLocation();
   /* v8 ignore start */
   // defensive: className typically not passed in tests; falsy branch covered, truthy not exercised
   const outerClass = className ? `app-page ${className}` : "app-page";
+  const effectiveBackHref =
+    backHref ??
+    (location.pathname.startsWith("/app/settings/") && location.pathname !== "/app/settings"
+      ? "/app/settings"
+      : undefined);
   /* v8 ignore stop */
   const searchTrigger = (
     <button
@@ -87,8 +93,8 @@ export function AppPage({
     <div className={outerClass}>
       <header className="app-page-header">
         <div className="app-page-header__left">
-          {backHref && (
-            <Link to={backHref} aria-label="Back" className="app-page-back">
+          {effectiveBackHref && (
+            <Link to={effectiveBackHref} aria-label="Back" className="app-page-back">
               <svg
                 width="18"
                 height="18"

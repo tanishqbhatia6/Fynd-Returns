@@ -185,7 +185,11 @@ export async function fetchSubscriptionSnapshot(
 const SNAPSHOT_TTL_MS = 10 * 60 * 1000; // refresh subscription cache every 10 min
 
 function normalizeShopDomain(shopDomain: string): string {
-  return shopDomain.trim().toLowerCase().replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+  return shopDomain
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/.*$/, "");
 }
 
 async function findOrCreateBillingShop(shopDomain: string) {
@@ -395,9 +399,13 @@ export async function setBillingPlanOverride(
  */
 export async function selectFreeBillingPlan(shopDomain: string): Promise<void> {
   const shop = await findOrCreateBillingShop(shopDomain);
+  const settingsId = shop.settings?.id;
+  if (!settingsId) {
+    throw new Error("Shop settings missing for billing plan selection.");
+  }
 
   await prisma.shopSettings.update({
-    where: { id: shop.settings.id },
+    where: { id: settingsId },
     data: {
       billingPlanSelection: "free",
       billingPlanSelectionAt: new Date(),

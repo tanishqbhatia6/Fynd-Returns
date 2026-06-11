@@ -1820,7 +1820,6 @@ export default function Integrations() {
                 Discard
               </s-button>
             </Link>
-            <span style={{ flex: 1, minWidth: 8 }} />
             <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
               {data.hasPlatformCreds && (
                 <button

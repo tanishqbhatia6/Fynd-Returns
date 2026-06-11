@@ -741,10 +741,23 @@ s-section {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
   margin-top: var(--rpm-space-xl);
   padding-top: var(--rpm-space-lg);
   border-top: var(--rpm-border);
+}
+
+.app-actions > a {
+  display: inline-flex;
+  text-decoration: none;
+}
+
+.app-actions s-button,
+.app-actions .app-btn,
+.app-actions .app-btn-primary,
+.app-actions button {
+  flex: 0 0 auto;
 }
 
 /* ────── Grid Layouts ────── */

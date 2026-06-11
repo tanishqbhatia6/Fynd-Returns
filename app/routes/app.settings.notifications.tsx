@@ -244,12 +244,12 @@ function Toggle({
         gap: 14,
         padding: "14px 18px",
         background: checked ? "var(--rpm-surface-subtle)" : "var(--rpm-surface)",
-          border: `1px solid ${checked ? (accentColor || "var(--rpm-accent)") + "33" : "var(--rpm-border-color)"}`,
-          borderRadius: "var(--rpm-radius)",
-          transition: "var(--rpm-transition)",
-          opacity: disabled ? 0.78 : 1,
-        }}
-      >
+        border: `1px solid ${checked ? (accentColor || "var(--rpm-accent)") + "33" : "var(--rpm-border-color)"}`,
+        borderRadius: "var(--rpm-radius)",
+        transition: "var(--rpm-transition)",
+        opacity: disabled ? 0.78 : 1,
+      }}
+    >
       <div
         style={{
           flexShrink: 0,
@@ -468,9 +468,7 @@ export default function Notifications() {
   const [waApiKey, setWaApiKey] = useState(data.whatsappApiKey);
   const [waPhoneNumberId, setWaPhoneNumberId] = useState(data.whatsappPhoneNumberId);
   const [waFromNumber, setWaFromNumber] = useState(data.whatsappFromNumber);
-  const [portalOtpEmailEnabled, setPortalOtpEmailEnabled] = useState(
-    data.portalOtpEmailEnabled,
-  );
+  const [portalOtpEmailEnabled, setPortalOtpEmailEnabled] = useState(data.portalOtpEmailEnabled);
   const [portalOtpSmsEnabled, setPortalOtpSmsEnabled] = useState(data.portalOtpSmsEnabled);
 
   const [previewTemplate, setPreviewTemplate] = useState<string | null>(null);
@@ -555,8 +553,7 @@ export default function Notifications() {
     refundAmount: "$129.00",
   };
 
-  const renderPreviewBody = (raw: string): string =>
-    renderEmailPreview(raw, SAMPLE_TEMPLATE_DATA);
+  const renderPreviewBody = (raw: string): string => renderEmailPreview(raw, SAMPLE_TEMPLATE_DATA);
 
   const startEditing = useCallback(
     (key: string) => {
@@ -1718,9 +1715,9 @@ export default function Notifications() {
                                 }}
                               >
                                 <span aria-hidden="true">🔁</span>
-                                Live preview · merge tags substituted with
-                                sample data ({SAMPLE_TEMPLATE_DATA.customerEmail},
-                                order {SAMPLE_TEMPLATE_DATA.orderName})
+                                Live preview · merge tags substituted with sample data (
+                                {SAMPLE_TEMPLATE_DATA.customerEmail}, order{" "}
+                                {SAMPLE_TEMPLATE_DATA.orderName})
                               </div>
                               <iframe
                                 sandbox=""
@@ -2032,7 +2029,7 @@ export default function Notifications() {
           </div>
 
           {/* ────── Actions ────── */}
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-start" }}>
+          <div className="app-actions">
             <s-button type="submit" loading={saveFetcher.state !== "idle"}>
               Save all settings
             </s-button>

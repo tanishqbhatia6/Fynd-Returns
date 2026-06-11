@@ -4,6 +4,9 @@ import tsconfigPaths from "vite-tsconfig-paths";
 export default defineConfig({
   plugins: [tsconfigPaths()],
   publicDir: false,
+  esbuild: {
+    jsxDev: false,
+  },
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
   },

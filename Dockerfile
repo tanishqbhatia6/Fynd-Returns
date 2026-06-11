@@ -12,6 +12,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 FROM deps AS build
+ENV NODE_ENV=production
 COPY . .
 RUN npx prisma generate
 RUN npm run build

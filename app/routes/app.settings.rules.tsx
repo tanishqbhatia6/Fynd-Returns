@@ -348,9 +348,20 @@ export default function ReturnRules() {
     );
     fetcher.submit(fd, { method: "post" });
   };
+  const isSaving = fetcher.state !== "idle";
+  const actions = (
+    <button
+      className="app-btn-primary"
+      type="submit"
+      form="return-rules-settings-form"
+      disabled={isSaving}
+    >
+      {isSaving ? "Saving..." : "Save Changes"}
+    </button>
+  );
 
   return (
-    <AppPage heading="Return Rules">
+    <AppPage heading="Return Rules" actions={actions}>
       <div className="app-content">
         {/* v8 ignore start - defensive optional chain on fetcher.data */}
         {fetcher.data?.success === true && (
@@ -363,7 +374,7 @@ export default function ReturnRules() {
         )}
         {/* v8 ignore stop */}
 
-        <fetcher.Form method="post" onSubmit={handleSubmit}>
+        <fetcher.Form id="return-rules-settings-form" method="post" onSubmit={handleSubmit}>
           <div className="layout-medium rpm-grid-2">
             <div>
               <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Return Offers</h3>
@@ -1214,9 +1225,6 @@ export default function ReturnRules() {
           </div>
 
           <div className="app-actions">
-            <s-button type="submit" loading={fetcher.state !== "idle"}>
-              Save
-            </s-button>
             <Link to="/app/settings">
               <s-button variant="secondary" type="button">
                 Discard

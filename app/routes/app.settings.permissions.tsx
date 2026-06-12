@@ -45,9 +45,20 @@ export default function Permissions() {
   const fetcher = useFetcher<{ success?: boolean }>();
   const [enabled, setEnabled] = useState(data.readAllOrdersEnabled);
   const saved = fetcher.data?.success === true;
+  const isSaving = fetcher.state !== "idle";
+  const actions = (
+    <button
+      className="app-btn-primary"
+      type="submit"
+      form="permissions-settings-form"
+      disabled={isSaving}
+    >
+      {isSaving ? "Saving..." : "Save Changes"}
+    </button>
+  );
 
   return (
-    <AppPage heading="Permissions">
+    <AppPage heading="Permissions" actions={actions}>
       <div className="app-content">
         {saved && (
           <div className="app-alert app-alert-success">
@@ -70,7 +81,7 @@ export default function Permissions() {
           </div>
         )}
 
-        <fetcher.Form method="post">
+        <fetcher.Form id="permissions-settings-form" method="post">
           <p
             style={{
               marginBottom: 28,
@@ -291,9 +302,6 @@ export default function Permissions() {
           </div>
 
           <div className="app-actions">
-            <s-button type="submit" loading={fetcher.state !== "idle"}>
-              Save
-            </s-button>
             <Link to="/app/settings">
               <s-button variant="secondary" type="button">
                 Discard

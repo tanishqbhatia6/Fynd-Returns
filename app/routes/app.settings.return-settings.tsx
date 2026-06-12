@@ -4,10 +4,7 @@ import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parseJsonArray } from "../lib/parse-json";
-import {
-  parseReturnIdConfig,
-  previewReturnRequestId,
-} from "../lib/return-request-id";
+import { parseReturnIdConfig, previewReturnRequestId } from "../lib/return-request-id";
 import type { ReturnIdBodyMode } from "../lib/return-request-id";
 import { findOrCreateShop } from "../lib/shop.server";
 import { fetchAllLocations } from "../lib/shopify-admin.server";
@@ -549,9 +546,20 @@ export default function ReturnSettings() {
     );
     fetcher.submit(fd, { method: "post" });
   };
+  const isSaving = fetcher.state !== "idle";
+  const actions = (
+    <button
+      className="app-btn-primary"
+      type="submit"
+      form="return-settings-form"
+      disabled={isSaving}
+    >
+      {isSaving ? "Saving..." : "Save Changes"}
+    </button>
+  );
 
   return (
-    <AppPage heading="Return Settings">
+    <AppPage heading="Return Settings" actions={actions}>
       <div className="app-content">
         {/* v8 ignore start - defensive optional chain on fetcher.data */}
         {fetcher.data?.success === true && (
@@ -564,7 +572,7 @@ export default function ReturnSettings() {
         )}
         {/* v8 ignore stop */}
 
-        <fetcher.Form method="post" onSubmit={handleSubmit}>
+        <fetcher.Form id="return-settings-form" method="post" onSubmit={handleSubmit}>
           <div
             className="layout-form"
             style={{ display: "flex", flexDirection: "column", gap: 24 }}
@@ -3609,9 +3617,6 @@ export default function ReturnSettings() {
           </div>
 
           <div className="app-actions">
-            <s-button type="submit" loading={fetcher.state !== "idle"}>
-              Save
-            </s-button>
             <Link to="/app/settings">
               <s-button variant="secondary" type="button">
                 Discard

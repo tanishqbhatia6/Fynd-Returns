@@ -181,15 +181,18 @@ describe("app.settings.rules component (default export)", () => {
     });
   });
 
-  it("renders Save and Discard action buttons", async () => {
+  it("renders Save Changes in the header and Discard as the secondary action", async () => {
     const { container } = renderWithRouter(ReturnRules, {
       initialEntries: ["/app/settings/rules"],
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      const buttons = Array.from(container.querySelectorAll("s-button"));
-      const labels = buttons.map((b) => b.textContent?.trim());
-      expect(labels).toEqual(expect.arrayContaining(["Save", "Discard"]));
+      const headerSave = container.querySelector<HTMLButtonElement>(
+        ".app-page-header__actions .app-btn-primary",
+      );
+      expect(headerSave?.textContent?.trim()).toBe("Save Changes");
+      expect(headerSave?.getAttribute("form")).toBe("return-rules-settings-form");
+      expect(container.querySelector(".app-actions")?.textContent).toContain("Discard");
     });
     const discardLink = container.querySelector('a[href="/app/settings"]');
     expect(discardLink).toBeTruthy();

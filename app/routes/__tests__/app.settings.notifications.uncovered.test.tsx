@@ -240,10 +240,14 @@ describe("notifications – section headers & basic structure", () => {
     expect(container.textContent).toContain("Customer Portal Access");
   });
 
-  it("renders the Save all settings button (s-button)", async () => {
+  it("renders the header Save Changes button", async () => {
     const { container } = renderBase();
     await waitForRender(container);
-    expect(container.innerHTML).toContain("Save all settings");
+    const headerSave = container.querySelector<HTMLButtonElement>(
+      ".app-page-header__actions .app-btn-primary",
+    );
+    expect(headerSave?.textContent).toContain("Save Changes");
+    expect(headerSave?.getAttribute("form")).toBe("notifications-settings-form");
   });
 });
 

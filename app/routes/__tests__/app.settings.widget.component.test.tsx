@@ -194,7 +194,7 @@ describe("app.settings.widget component (default export)", () => {
     });
   });
 
-  it("renders the Save / Discard / Preview portal action buttons", async () => {
+  it("renders header Save Changes plus Discard / Preview portal actions", async () => {
     const { container } = renderWithRouter(Widget, {
       initialEntries: ["/app/settings/widget"],
       loaderData: baseLoaderData,
@@ -203,8 +203,12 @@ describe("app.settings.widget component (default export)", () => {
       const actions = container.querySelector(".app-actions");
       expect(actions).toBeTruthy();
     });
+    const headerSave = container.querySelector<HTMLButtonElement>(
+      ".app-page-header__actions .app-btn-primary",
+    );
+    expect(headerSave?.textContent?.trim()).toBe("Save Changes");
+    expect(headerSave?.getAttribute("form")).toBe("widget-settings-form");
     const text = container.querySelector(".app-actions")?.textContent ?? "";
-    expect(text).toMatch(/Save/);
     expect(text).toMatch(/Discard/);
     expect(text).toMatch(/Preview portal/);
     const previewLink = Array.from(container.querySelectorAll("a")).find(

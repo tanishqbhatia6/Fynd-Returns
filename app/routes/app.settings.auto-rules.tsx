@@ -196,9 +196,20 @@ export default function AutoApproveRulesSettings() {
     fd.set("rulesJson", JSON.stringify(cleanRules));
     fetcher.submit(fd, { method: "post" });
   };
+  const isSaving = fetcher.state !== "idle";
+  const actions = (
+    <button
+      className="app-btn-primary"
+      type="submit"
+      form="auto-rules-settings-form"
+      disabled={isSaving}
+    >
+      {isSaving ? "Saving..." : "Save Changes"}
+    </button>
+  );
 
   return (
-    <AppPage heading="Auto-Approve Rules">
+    <AppPage heading="Auto-Approve Rules" actions={actions}>
       <div className="app-content">
         {fetcher.data?.success && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 16 }}>
@@ -267,7 +278,7 @@ export default function AutoApproveRulesSettings() {
             </p>
           </s-section>
 
-          <form onSubmit={handleSubmit}>
+          <form id="auto-rules-settings-form" onSubmit={handleSubmit}>
             <s-section>
               <div style={{ fontWeight: 600, marginBottom: 16 }}>Rules ({rules.length})</div>
               {rules.length === 0 ? (
@@ -583,9 +594,6 @@ export default function AutoApproveRulesSettings() {
             {/* v8 ignore stop */}
 
             <div className="app-actions">
-              <s-button type="submit" loading={fetcher.state !== "idle"}>
-                Save Rules
-              </s-button>
               <Link to="/app/settings">
                 <s-button variant="secondary" type="button">
                   Discard

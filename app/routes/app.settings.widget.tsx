@@ -309,9 +309,20 @@ export default function Widget() {
     reader.onload = () => setter(reader.result as string);
     reader.readAsDataURL(file);
   }
+  const isSaving = fetcher.state !== "idle";
+  const actions = (
+    <button
+      className="app-btn-primary"
+      type="submit"
+      form="widget-settings-form"
+      disabled={isSaving}
+    >
+      {isSaving ? "Saving..." : "Save Changes"}
+    </button>
+  );
 
   return (
-    <AppPage heading="Assure Return Widget">
+    <AppPage heading="Assure Return Widget" actions={actions}>
       <div className="app-content layout-form widget-settings-page">
         {fetcher.data?.success === true && (
           <div className="app-alert app-alert-success">Settings saved successfully.</div>
@@ -322,7 +333,7 @@ export default function Widget() {
           </div>
         )}
 
-        <fetcher.Form method="post" className="widget-settings-form">
+        <fetcher.Form id="widget-settings-form" method="post" className="widget-settings-form">
           <input type="hidden" name="portalLabelsJson" value={JSON.stringify(labelOverrides)} />
           <input type="hidden" name="brandLogoUrl" value={brandLogoUrl ?? ""} />
           <input type="hidden" name="brandFaviconUrl" value={brandFaviconUrl ?? ""} />
@@ -852,9 +863,6 @@ export default function Widget() {
             <input type="hidden" name="shadow" value={portalTheme.shadow} />
           </s-section>
           <div className="app-actions">
-            <s-button type="submit" loading={fetcher.state !== "idle"}>
-              Save
-            </s-button>
             <Link to="/app/settings">
               <s-button variant="secondary" type="button">
                 Discard

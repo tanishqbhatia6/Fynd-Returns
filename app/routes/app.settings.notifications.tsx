@@ -626,6 +626,17 @@ export default function Notifications() {
   );
 
   const saved = saveFetcher.data?.success === true;
+  const isSaving = saveFetcher.state !== "idle";
+  const actions = (
+    <button
+      className="app-btn-primary"
+      type="submit"
+      form="notifications-settings-form"
+      disabled={isSaving}
+    >
+      {isSaving ? "Saving..." : "Save Changes"}
+    </button>
+  );
   const templatesSaved = templateFetcher.data && "templatesSaved" in templateFetcher.data;
   const testResult = testFetcher.data?.testResult;
   const smtpFilled = !!(smtpHost && smtpUser && smtpPass);
@@ -717,7 +728,7 @@ export default function Notifications() {
   };
 
   return (
-    <AppPage heading="Notifications">
+    <AppPage heading="Notifications" actions={actions}>
       <div className="app-content layout-medium">
         {saved && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 20 }}>
@@ -741,7 +752,7 @@ export default function Notifications() {
           </div>
         )}
 
-        <saveFetcher.Form method="post">
+        <saveFetcher.Form id="notifications-settings-form" method="post">
           <input type="hidden" name="intent" value="save" />
 
           {/* ────── Customer Portal Access ────── */}
@@ -2030,9 +2041,6 @@ export default function Notifications() {
 
           {/* ────── Actions ────── */}
           <div className="app-actions">
-            <s-button type="submit" loading={saveFetcher.state !== "idle"}>
-              Save all settings
-            </s-button>
             <Link to="/app/settings">
               <s-button variant="secondary" type="button">
                 Discard

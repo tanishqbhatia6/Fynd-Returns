@@ -206,7 +206,7 @@ describe("ProductPoliciesSettings (default export)", () => {
     }, WAIT);
   });
 
-  it("renders Save and Discard buttons with a link back to /app/settings", async () => {
+  it("renders Save Changes in the header and Discard with a link back to /app/settings", async () => {
     const { container } = renderWithRouter(ProductPoliciesSettings, {
       initialEntries: ["/app/settings/product-policies"],
       loaderData: emptyLoaderData,
@@ -214,11 +214,12 @@ describe("ProductPoliciesSettings (default export)", () => {
     await waitFor(() => {
       expect(container.querySelector(".app-actions")).toBeTruthy();
     }, WAIT);
-    const actionButtons = Array.from(container.querySelectorAll(".app-actions s-button")).map((b) =>
-      b.textContent?.trim(),
+    const headerSave = container.querySelector<HTMLButtonElement>(
+      ".app-page-header__actions .app-btn-primary",
     );
-    expect(actionButtons).toContain("Save");
-    expect(actionButtons).toContain("Discard");
+    expect(headerSave?.textContent?.trim()).toBe("Save Changes");
+    expect(headerSave?.getAttribute("form")).toBe("product-policies-settings-form");
+    expect(container.querySelector(".app-actions")?.textContent).toContain("Discard");
 
     const discardLink = Array.from(container.querySelectorAll("a")).find(
       (a) => a.getAttribute("href") === "/app/settings",

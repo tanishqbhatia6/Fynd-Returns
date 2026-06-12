@@ -5573,6 +5573,53 @@ s-link * {
   flex: 0 0 auto;
 }
 
+/* Title-bar primary action.
+   This is the large Save Changes control shown beside global search. Keep it
+   separate from compact body/table buttons so pages share one header pattern. */
+.app-page-header__right {
+  gap: 16px;
+}
+
+.app-page-header__actions .app-btn-primary {
+  min-width: 220px;
+  min-height: 66px;
+  padding: 0 30px;
+  border-radius: 12px !important;
+  border-color: #1d4ed8;
+  background: linear-gradient(180deg, #2f73ff 0%, #1d4ed8 100%);
+  box-shadow:
+    0 10px 18px rgba(29, 78, 216, 0.22),
+    0 2px 4px rgba(15, 23, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  font-size: 24px;
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.app-page-header__actions .app-btn-primary:hover {
+  background: linear-gradient(180deg, #2563eb 0%, #1e40af 100%);
+  box-shadow:
+    0 12px 22px rgba(29, 78, 216, 0.26),
+    0 3px 6px rgba(15, 23, 42, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.app-page-header__actions .app-btn-primary:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+@media (max-width: 640px) {
+  .app-page-header__actions .app-btn-primary {
+    width: 100%;
+    min-width: 0;
+    min-height: 48px;
+    padding: 0 18px;
+    font-size: 16px;
+  }
+}
+
 .dashboard-date-bar {
   display: flex;
   align-items: center;

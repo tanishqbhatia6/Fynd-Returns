@@ -589,7 +589,7 @@ describe("widget gap coverage — toggles + form submission", () => {
     });
   });
 
-  it("renders the Save button with default loading=false (idle fetcher)", async () => {
+  it("renders the header Save Changes button with default loading=false (idle fetcher)", async () => {
     const { container } = renderWithRouter(Widget, {
       initialEntries: ["/app/settings/widget"],
       loaderData: baseLoaderData,
@@ -598,7 +598,10 @@ describe("widget gap coverage — toggles + form submission", () => {
       const actions = container.querySelector(".app-actions");
       expect(actions).toBeTruthy();
     });
-    // s-button is a custom element — just assert the Save text is rendered
-    expect(container.querySelector(".app-actions")?.textContent).toContain("Save");
+    const headerSave = container.querySelector<HTMLButtonElement>(
+      ".app-page-header__actions .app-btn-primary",
+    );
+    expect(headerSave?.textContent).toContain("Save Changes");
+    expect(headerSave?.disabled).toBe(false);
   });
 });

@@ -578,9 +578,20 @@ export default function Integrations() {
   const showTestSuccess = fetcher.data && "testResult" in fetcher.data && fetcher.data.testResult;
   const showTestError =
     fetcher.data && "testResult" in fetcher.data && !fetcher.data.testResult && fetcher.data.error;
+  const isSaving = fetcher.state !== "idle";
+  const actions = (
+    <button
+      className="app-btn-primary"
+      type="submit"
+      form="integrations-settings-form"
+      disabled={isSaving}
+    >
+      {isSaving ? "Saving..." : "Save Changes"}
+    </button>
+  );
 
   return (
-    <AppPage heading="Partner Integrations">
+    <AppPage heading="Partner Integrations" actions={actions}>
       <div className="app-content layout-form">
         {fetcher.data?.error && !showTestError && (
           <div className="app-alert app-alert-error">{fetcher.data.error}</div>
@@ -1126,7 +1137,7 @@ export default function Integrations() {
           </details>
         </section>
 
-        <fetcher.Form method="post">
+        <fetcher.Form id="integrations-settings-form" method="post">
           <div
             style={{
               marginBottom: 24,
@@ -1812,9 +1823,6 @@ export default function Integrations() {
           {/* v8 ignore stop */}
 
           <div className="app-actions">
-            <s-button type="submit" loading={fetcher.state !== "idle"}>
-              Save
-            </s-button>
             <Link to="/app/settings">
               <s-button variant="secondary" type="button">
                 Discard

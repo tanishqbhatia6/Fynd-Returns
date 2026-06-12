@@ -134,9 +134,20 @@ export default function ProductPoliciesSettings() {
     fd.set("rulesJson", JSON.stringify(rules));
     fetcher.submit(fd, { method: "post" });
   };
+  const isSaving = fetcher.state !== "idle";
+  const actions = (
+    <button
+      className="app-btn-primary"
+      type="submit"
+      form="product-policies-settings-form"
+      disabled={isSaving}
+    >
+      {isSaving ? "Saving..." : "Save Changes"}
+    </button>
+  );
 
   return (
-    <AppPage heading="Product-Level Return Policies">
+    <AppPage heading="Product-Level Return Policies" actions={actions}>
       <div className="app-content">
         {fetcher.data?.success === true && (
           <div className="app-alert app-alert-success">Product policies saved successfully.</div>
@@ -160,7 +171,7 @@ export default function ProductPoliciesSettings() {
           </p>
         </div>
 
-        <fetcher.Form method="post" onSubmit={handleSubmit}>
+        <fetcher.Form id="product-policies-settings-form" method="post" onSubmit={handleSubmit}>
           <div
             className="layout-form"
             style={{ display: "flex", flexDirection: "column", gap: 16 }}
@@ -487,9 +498,6 @@ export default function ProductPoliciesSettings() {
           </div>
 
           <div className="app-actions">
-            <s-button type="submit" loading={fetcher.state !== "idle"}>
-              Save
-            </s-button>
             <Link to="/app/settings">
               <s-button variant="secondary" type="button">
                 Discard

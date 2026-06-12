@@ -126,6 +126,21 @@ describe("_index route loader", () => {
     expect(location).toContain("id_token=token-from-shopify");
   });
 
+  it("redirects host-only embedded launches into the app shell", async () => {
+    const request = new Request("https://example.com/?embedded=1&host=abc123");
+
+    let thrown: unknown;
+    try {
+      await loader({ request, params: {}, context: {} } as never);
+    } catch (e) {
+      thrown = e;
+    }
+
+    expect(thrown).toBeInstanceOf(Response);
+    const location = (thrown as Response).headers.get("Location") ?? "";
+    expect(location).toBe("/app?embedded=1&host=abc123");
+  });
+
   it("returns showForm:true when no shop param is present (login is mocked truthy)", async () => {
     const request = new Request("https://example.com/");
 

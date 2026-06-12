@@ -6,7 +6,9 @@ import { login } from "../../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
-  if (url.searchParams.get("id_token")) {
+  const hasEmbeddedHostContext =
+    url.searchParams.get("embedded") === "1" && url.searchParams.has("host");
+  if (url.searchParams.get("id_token") || hasEmbeddedHostContext) {
     throw redirect(`/app?${url.searchParams.toString()}`);
   }
 
